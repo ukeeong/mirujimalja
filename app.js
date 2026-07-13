@@ -17,6 +17,7 @@ let postponeLog = load('postponeLog', []);
 let daylogs = load('daylogs', {}); // {dateKey:{unauthorized,freeday}}
 let routines = load('routines', []); // [{id,name,type,days,perWeek,paused,reward,createdAt}]
 let rlogs = load('rlogs', []); // [{rid,day}]
+let gateTarget = load('gateTarget', { emoji:'🎮', name:'게임' }); // 게이트가 잠그는 대상
 let lastCheckin = load('lastCheckin', null);
 let activeId = load('activeId', null);
 let notified = {}; // {taskId:{t10,t0}}
@@ -48,8 +49,8 @@ function gate(){
   const musts = todayTasks().filter(t=>t.must);
   const done = musts.filter(t=>t.done);
   if(musts.length===0) return { state:'none', label:'무조건 없음', cls:'dim' };
-  if(done.length < musts.length) return { state:'locked', label:`🔒 게임 잠김 ${done.length}/${musts.length}`, cls:'' };
-  return { state:'open', label:'🔓 오늘 게임 OK', cls:'ok' };
+  if(done.length < musts.length) return { state:'locked', label:`🔒 ${gateTarget.name} 잠김 ${done.length}/${musts.length}`, cls:'' };
+  return { state:'open', label:`🔓 오늘 ${gateTarget.name} OK`, cls:'ok' };
 }
 function renderGate(){
   const g = gate();
@@ -62,6 +63,7 @@ function renderGate(){
   const done = musts.filter(t=>t.done).length;
   const banner = $('#gateBanner');
   const icon = $('#gbIcon'), label = $('#gbLabel'), sub = $('#gbSub'), barWrap = $('#gbBarWrap'), bar = $('#gbBar');
+  $('#mustHint').textContent = `(다 끝내면 ${gateTarget.emoji} ${gateTarget.name} 해금)`;
   if(g.state==='freeday'){
     banner.className='gatebanner none';
     icon.textContent='🏖'; label.textContent='프리데이';
@@ -69,23 +71,53 @@ function renderGate(){
     barWrap.hidden=true;
   } else if(g.state==='none'){
     banner.className='gatebanner none';
-    icon.textContent='🎮'; label.textContent='무조건 없는 날 — 게이트 꺼짐';
-    sub.textContent='잠그고 싶으면 할 일에 🚩 무조건을 걸어봐';
+    icon.textContent=gateTarget.emoji; label.textContent='무조건 없는 날 — 게이트 꺼짐';
+    sub.textContent=`잠그고 싶으면 할 일에 🚩 무조건을 걸어봐 · 여길 탭하면 잠글 대상(${gateTarget.name}) 변경`;
     barWrap.hidden=true;
   } else if(g.state==='locked'){
     banner.className='gatebanner locked';
-    icon.textContent='🔒'; label.textContent='게임 잠김';
+    icon.textContent='🔒'; label.textContent=`${gateTarget.emoji} ${gateTarget.name} 잠김`;
     sub.textContent=`무조건 ${musts.length-done}개 남음 — 다 끝내면 해금 (${done}/${musts.length})`;
     barWrap.hidden=false;
     bar.style.width = Math.round(done/musts.length*100)+'%';
   } else {
     banner.className='gatebanner open';
-    icon.textContent='🔓'; label.textContent='오늘 게임 OK';
-    sub.textContent=`무조건 ${musts.length}개 전부 완료! 죄책감 없이 즐겨`;
+    icon.textContent='🔓'; label.textContent=`오늘 ${gateTarget.name} OK`;
+    sub.textContent=`무조건 ${musts.length}개 전부 완료! ${gateTarget.emoji} 죄책감 없이 즐겨`;
     barWrap.hidden=false;
     bar.style.width='100%';
   }
 }
+// 게이트 대상 설정 모달
+const GT_EMOJIS = ['🎮','📺','📱','🍺','🛒','🍰','😴','🚬','☕','💬','🎰','🌐'];
+let gtSel = gateTarget.emoji;
+(function(){
+  const box = $('#gtEmojis');
+  GT_EMOJIS.forEach(e=>{
+    const b = document.createElement('button');
+    b.type='button'; b.className='mini gt-emoji'+(e===gtSel?' on':''); b.textContent=e;
+    b.addEventListener('click',()=>{
+      gtSel=e;
+      box.querySelectorAll('.mini').forEach(x=>x.classList.toggle('on',x.textContent===e));
+    });
+    box.appendChild(b);
+  });
+})();
+$('#gateBanner').addEventListener('click',()=>{
+  gtSel = gateTarget.emoji;
+  document.querySelectorAll('#gtEmojis .mini').forEach(x=>x.classList.toggle('on',x.textContent===gtSel));
+  $('#gtName').value = gateTarget.name;
+  $('#gateModal').hidden = false;
+});
+$('#gtSave').addEventListener('click',()=>{
+  const name = $('#gtName').value.trim();
+  if(!name){ alert('행동 이름을 입력해줘!'); return; }
+  gateTarget = { emoji: gtSel, name };
+  save('gateTarget', gateTarget);
+  $('#gateModal').hidden = true;
+  renderAll();
+});
+$('#gtClose').addEventListener('click',()=>{ $('#gateModal').hidden = true; });
 
 // ----- 스트릭 / 기록 -----
 function dayStatus(key){
@@ -359,19 +391,27 @@ function routineStreak(r){
 }
 function rewardProgress(r){
   if(!r.reward) return null;
-  const done = Math.max(0, rlogCount(r.id) - r.reward.base);
-  return { done, goal: r.reward.goal, left: Math.max(0, r.reward.goal-done), achieved: done >= r.reward.goal };
+  const rw = r.reward;
+  const done = Math.max(0, rlogCount(r.id) - rw.base);
+  const achieved = !!rw.achievedAt;
+  const expired = !achieved && rw.due && Date.now() > rw.due;
+  const dleft = rw.due ? Math.max(0, Math.ceil((rw.due - Date.now())/86400000)) : null;
+  return { done, goal: rw.goal, left: Math.max(0, rw.goal-done), achieved, expired, dleft };
 }
 function toggleRoutineToday(rid){
   const r = routines.find(x=>x.id===rid); if(!r) return;
   const day = todayKey();
-  const before = r.reward ? rewardProgress(r).achieved : true;
   const i = rlogs.findIndex(l=>l.rid===rid && l.day===day);
   if(i>=0) rlogs.splice(i,1); else rlogs.push({rid, day});
   save('rlogs', rlogs);
-  if(r.reward && !before && rewardProgress(r).achieved){
-    playMelody();
-    setTimeout(()=>alert(`🎁 보상 달성!\n"${r.name}" ${r.reward.goal}회 완료 — ${r.reward.text}\n루틴 탭에서 [보상 받았어]를 눌러줘!`), 50);
+  if(r.reward && !r.reward.achievedAt){
+    const rp = rewardProgress(r);
+    if(!rp.expired && rp.done >= rp.goal){
+      r.reward.achievedAt = Date.now();
+      save('routines', routines);
+      playMelody();
+      setTimeout(()=>alert(`🎁 보상 달성!\n"${r.name}" ${r.reward.goal}회 완료 — ${r.reward.text}\n루틴 탭에서 [보상 받았어]를 눌러줘!`), 50);
+    }
   }
   renderAll();
 }
@@ -423,8 +463,23 @@ function renderRoutines(){
         const claim = document.createElement('button'); claim.className='mini'; claim.textContent='보상 받았어';
         claim.addEventListener('click',()=>{ r.reward=null; save('routines',routines); renderAll(); });
         rw.appendChild(claim);
+      } else if(rp.expired){
+        rw.innerHTML = `<span>⏳ 기간 종료 — ${rp.done}/${rp.goal}회 (${r.reward.text})</span>`;
+        const retry = document.createElement('button'); retry.className='mini'; retry.textContent='🔄 다시 도전';
+        retry.addEventListener('click',()=>{
+          r.reward.base = rlogCount(r.id);
+          r.reward.due = Date.now() + (r.reward.periodDays||14)*86400000;
+          r.reward.achievedAt = null;
+          save('routines',routines); renderAll();
+        });
+        const drop = document.createElement('button'); drop.className='mini'; drop.textContent='지우기';
+        drop.addEventListener('click',()=>{ r.reward=null; save('routines',routines); renderAll(); });
+        const btns = document.createElement('div'); btns.style.display='flex'; btns.style.gap='6px';
+        btns.appendChild(retry); btns.appendChild(drop);
+        rw.appendChild(btns);
       } else {
-        rw.innerHTML = `<span>🎁 ${r.reward.text}까지 <b>${rp.left}회</b></span><div class="rt-bar"><div style="width:${Math.min(100,Math.round(rp.done/rp.goal*100))}%"></div></div>`;
+        const dday = rp.dleft!=null ? ` · <b>D-${rp.dleft}</b>` : '';
+        rw.innerHTML = `<span>🎁 ${r.reward.text}까지 <b>${rp.left}회</b>${dday}</span><div class="rt-bar"><div style="width:${Math.min(100,Math.round(rp.done/rp.goal*100))}%"></div></div>`;
       }
       card.appendChild(rw);
     }
@@ -459,7 +514,27 @@ function renderRoutines(){
   if(routines.length===0) box.innerHTML = '<p class="subline">아직 루틴이 없어. 위에서 첫 루틴을 만들어봐!</p>';
 }
 // 루틴 추가 폼
-let rtType = 'daily', rtSelDays = new Set();
+let rtType = 'daily', rtSelDays = new Set(), rtPeriod = 14;
+(function(){
+  const box = $('#rtRewardPeriod');
+  const lbl = document.createElement('span');
+  lbl.className='hint'; lbl.textContent='기간:'; lbl.style.alignSelf='center';
+  box.appendChild(lbl);
+  [['1주',7],['2주',14],['4주',28]].forEach(([label,d])=>{
+    const b = document.createElement('button');
+    b.type='button'; b.className='mini'+(d===rtPeriod?' on':''); b.dataset.d=d; b.textContent=label;
+    b.addEventListener('click',()=>{
+      rtPeriod=d;
+      box.querySelectorAll('.mini').forEach(x=>x.classList.toggle('on',Number(x.dataset.d)===d));
+    });
+    box.appendChild(b);
+  });
+  const syncPeriodRow = ()=>{
+    box.hidden = !($('#rtRewardGoal').value || $('#rtRewardText').value.trim());
+  };
+  $('#rtRewardGoal').addEventListener('input', syncPeriodRow);
+  $('#rtRewardText').addEventListener('input', syncPeriodRow);
+})();
 (function(){
   const typesBox = $('#rtTypes');
   [['daily','매일'],['days','요일 지정'],['weekly','주 N회']].forEach(([k,label])=>{
@@ -492,10 +567,12 @@ $('#rtAdd').addEventListener('click',()=>{
   const perWeek = Math.min(7, Math.max(1, parseInt($('#rtPerWeek').value,10)||3));
   const goal = parseInt($('#rtRewardGoal').value,10);
   const text = $('#rtRewardText').value.trim();
-  const reward = (goal>0 && text) ? { goal, text, base:0 } : null;
+  if((goal>0) !== !!text){ alert('보상을 걸려면 횟수(N회)와 보상 내용 둘 다 적어줘!'); return; }
+  const reward = (goal>0 && text) ? { goal, text, base:0, periodDays:rtPeriod, due: Date.now()+rtPeriod*86400000, achievedAt:null } : null;
   routines.push({ id:uid(), name, type:rtType, days:[...rtSelDays], perWeek, paused:false, reward, createdAt:Date.now() });
   save('routines',routines);
   $('#rtName').value=''; $('#rtRewardGoal').value=''; $('#rtRewardText').value='';
+  $('#rtRewardPeriod').hidden=true;
   renderAll();
 });
 
@@ -522,6 +599,7 @@ function ciMaybeOpen(){
 function ciOpen(){
   ci.triage={}; ci.musts=new Set();
   $('#ciDate').textContent = new Date().toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'long'});
+  $('#ciQ1 .ci-q').textContent = `어제 무단 ${gateTarget.name} 했어?`;
   $('#checkinModal').hidden=false;
   const yk = yesterdayKey();
   const needQ1 = !(daylogs[yk]||{}).freeday && dayStatus(yk)!=='g';

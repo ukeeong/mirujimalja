@@ -53,7 +53,8 @@ input[type="text"],input[type="number"],input[type="datetime-local"]{
 .pill.bad{color:var(--bad);border-color:#4a1f26;background:rgba(239,68,68,.08)}
 .pill.dim{color:var(--sub)}
 
-.gatebanner{border-radius:16px;padding:14px 16px;border:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.gatebanner{border-radius:16px;padding:14px 16px;border:1px solid var(--line);display:flex;flex-direction:column;gap:6px;cursor:pointer}
+.gt-emoji{font-size:18px;padding:6px 10px}
 .gatebanner .gb-main{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700}
 .gatebanner .gb-sub{font-size:12px;color:var(--sub)}
 .gatebanner.locked{background:rgba(239,68,68,.08);border-color:#4a1f26}
