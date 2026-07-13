@@ -30,13 +30,20 @@
   <main>
     <!-- 오늘 -->
     <section id="view-today" class="view">
-      <div class="quickadd card">
-        <input id="taTitle" type="text" placeholder="할 일 입력 후 Enter" />
-        <div class="chips" id="taChips"></div>
-        <div class="qa-row">
+      <div class="quickadd card" id="taForm">
+        <div class="qa-bar">
+          <input id="taTitle" type="text" placeholder="할 일 입력 후 Enter" />
+          <span id="taBadge" class="pill ok" hidden></span>
+        </div>
+        <div id="taPanel" class="qa-panel" hidden>
+          <div class="chips" id="taDays"></div>
+          <div class="hourgrid" id="taHours"></div>
+          <div class="chips" id="taRel"></div>
           <input id="taDeadline" type="datetime-local" hidden />
-          <label class="mustlabel"><input id="taMust" type="checkbox" /> 무조건</label>
-          <button id="taAdd" class="btn primary" type="button">추가</button>
+          <div class="qa-row spread">
+            <label class="mustlabel"><input id="taMust" type="checkbox" /> 🚩 무조건</label>
+            <button id="taAdd" class="btn primary" type="button">추가</button>
+          </div>
         </div>
       </div>
 
@@ -63,12 +70,20 @@
 
     <!-- 인박스 -->
     <section id="view-inbox" class="view" hidden>
-      <div class="quickadd card">
-        <input id="ibTitle" type="text" placeholder="할 일 입력 후 Enter (마감은 선택)" />
-        <div class="chips" id="ibChips"></div>
-        <div class="qa-row">
+      <div class="quickadd card" id="ibForm">
+        <div class="qa-bar">
+          <input id="ibTitle" type="text" placeholder="할 일 입력 후 Enter (마감은 선택)" />
+          <span id="ibBadge" class="pill ok" hidden></span>
+        </div>
+        <div id="ibPanel" class="qa-panel" hidden>
+          <div class="chips" id="ibDays"></div>
+          <div class="hourgrid" id="ibHours"></div>
+          <div class="chips" id="ibRel"></div>
           <input id="ibDeadline" type="datetime-local" hidden />
-          <button id="ibAdd" class="btn primary" type="button">추가</button>
+          <div class="qa-row spread">
+            <span></span>
+            <button id="ibAdd" class="btn primary" type="button">추가</button>
+          </div>
         </div>
       </div>
       <div class="section-title">마감 임박</div>

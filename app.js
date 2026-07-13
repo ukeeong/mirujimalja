@@ -535,40 +535,83 @@ document.querySelectorAll('.tab').forEach(b=>{
   });
 });
 
-// ----- 마감 칩 -----
-function setupChips(chipsId, dlId){
-  const box = document.getElementById(chipsId), dl = document.getElementById(dlId);
-  let sel = 'none';
-  const presets = [
-    ['none','마감 없음', ()=>null],
-    ['ev','오늘 18:00', ()=>{ const d=new Date(); d.setHours(18,0,0,0); return d; }],
-    ['nt','오늘 22:00', ()=>{ const d=new Date(); d.setHours(22,0,0,0); return d; }],
-    ['tm','내일 10:00', ()=>tomorrowAt10()],
-    ['cu','직접', ()=>dl.value ? new Date(dl.value) : null],
-  ];
-  function paint(){
-    box.querySelectorAll('.mini').forEach(b=>b.classList.toggle('on', b.dataset.k===sel));
-    dl.hidden = sel!=='cu';
+// ----- 빠른 마감 입력 (2탭: 날짜 + 시간) -----
+function setupQuickPanel(ids){
+  const el = (id)=>document.getElementById(id);
+  const form=el(ids.form), title=el(ids.title), badge=el(ids.badge), panel=el(ids.panel);
+  const daysBox=el(ids.days), hoursBox=el(ids.hours), relBox=el(ids.rel), dl=el(ids.dl);
+  let day=null, hour=null, rel=null;
+
+  function dayOffset(){ return day==='tmr'?1 : day==='d2'?2 : 0; }
+  function compute(){
+    if(rel!=null) return new Date(Date.now()+rel*3600000);
+    if(day==='pick') return dl.value ? new Date(dl.value) : null;
+    if(hour==null) return null;
+    const d = new Date(); d.setDate(d.getDate()+dayOffset()); d.setHours(hour,0,0,0);
+    if(hour===24){ d.setHours(0,0,0,0); d.setDate(d.getDate()+1); }
+    if(day==null && d < new Date()) d.setDate(d.getDate()+1); // 시간만 골랐는데 지났으면 자동으로 내일
+    return d;
   }
-  presets.forEach(([k,label,get])=>{
+  function badgeText(d){
+    const now = new Date();
+    const diffDays = Math.round((new Date(d.getFullYear(),d.getMonth(),d.getDate()) - new Date(now.getFullYear(),now.getMonth(),now.getDate()))/86400000);
+    const dayLabel = diffDays===0?'오늘':diffDays===1?'내일':diffDays===2?'모레':`${d.getMonth()+1}/${d.getDate()}`;
+    return `${dayLabel} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function paint(){
+    daysBox.querySelectorAll('.mini').forEach(b=>b.classList.toggle('on', b.dataset.k===day));
+    relBox.querySelectorAll('.mini').forEach(b=>b.classList.toggle('on', b.dataset.r!=='' && Number(b.dataset.r)===rel));
+    hoursBox.querySelectorAll('.mini').forEach(b=>{
+      const h = Number(b.dataset.h);
+      b.classList.toggle('on', h===hour);
+      // '오늘'을 명시적으로 고른 상태에선 지난 시간 비활성
+      let past = false;
+      if(day==='today'){ const d=new Date(); d.setHours(h,0,0,0); if(h===24){d.setHours(0,0,0,0);d.setDate(d.getDate()+1);} past = d < new Date(); }
+      b.disabled = past;
+    });
+    dl.hidden = day!=='pick';
+    const d = compute();
+    badge.hidden = !d;
+    if(d) badge.textContent = badgeText(d);
+  }
+
+  [['today','오늘'],['tmr','내일'],['d2','모레'],['pick','📅 날짜']].forEach(([k,label])=>{
     const b = document.createElement('button');
     b.type='button'; b.className='mini'; b.dataset.k=k; b.textContent=label;
-    b.addEventListener('click',()=>{
-      if(k==='ev'||k==='nt'||k==='tm'){
-        if(get() < new Date()){ alert('이미 지난 시간이야!'); return; }
-      }
-      sel=k; paint();
-    });
-    box.appendChild(b);
+    b.addEventListener('click',()=>{ rel=null; day = (day===k?null:k); paint(); });
+    daysBox.appendChild(b);
   });
+  for(let h=9; h<=24; h++){
+    const b = document.createElement('button');
+    b.type='button'; b.className='mini'; b.dataset.h=h; b.textContent=h;
+    b.addEventListener('click',()=>{ rel=null; if(day==='pick') day=null; hour = (hour===h?null:h); paint(); });
+    hoursBox.appendChild(b);
+  }
+  [['1시간 뒤',1],['3시간 뒤',3]].forEach(([label,h])=>{
+    const b = document.createElement('button');
+    b.type='button'; b.className='mini'; b.dataset.r=h; b.textContent=label;
+    b.addEventListener('click',()=>{ rel = (rel===h?null:h); if(rel!=null){ day=null; hour=null; } paint(); });
+    relBox.appendChild(b);
+  });
+  const clearBtn = document.createElement('button');
+  clearBtn.type='button'; clearBtn.className='mini'; clearBtn.dataset.r=''; clearBtn.textContent='마감 없음';
+  clearBtn.addEventListener('click',()=>{ day=null; hour=null; rel=null; dl.value=''; paint(); });
+  relBox.appendChild(clearBtn);
+  dl.addEventListener('change', paint);
+
+  title.addEventListener('focus',()=>{ panel.hidden=false; });
+  title.addEventListener('click',()=>{ panel.hidden=false; });
+  panel.addEventListener('mousedown',(e)=>{ if(e.target.tagName!=='INPUT') e.preventDefault(); }); // 버튼 눌러도 입력창 포커스 유지
+  document.addEventListener('click',(e)=>{ if(!form.contains(e.target)) panel.hidden=true; });
+
   paint();
   return {
-    deadline(){ const d = presets.find(p=>p[0]===sel)[2](); return d ? d.toISOString() : null; },
-    reset(){ sel='none'; dl.value=''; paint(); }
+    deadline(){ const d = compute(); return d ? d.toISOString() : null; },
+    reset(){ day=null; hour=null; rel=null; dl.value=''; paint(); }
   };
 }
-const taChips = setupChips('taChips','taDeadline');
-const ibChips = setupChips('ibChips','ibDeadline');
+const taQuick = setupQuickPanel({form:'taForm',title:'taTitle',badge:'taBadge',panel:'taPanel',days:'taDays',hours:'taHours',rel:'taRel',dl:'taDeadline'});
+const ibQuick = setupQuickPanel({form:'ibForm',title:'ibTitle',badge:'ibBadge',panel:'ibPanel',days:'ibDays',hours:'ibHours',rel:'ibRel',dl:'ibDeadline'});
 
 // ----- 마감 연장 -----
 function extendActive(hours){
@@ -583,14 +626,14 @@ function extendActive(hours){
 
 // ----- 입력 이벤트 -----
 $('#taAdd').addEventListener('click',()=>{
-  if(addTask($('#taTitle').value, taChips.deadline(), $('#taMust').checked, 'today')){
-    $('#taTitle').value=''; $('#taMust').checked=false; taChips.reset();
+  if(addTask($('#taTitle').value, taQuick.deadline(), $('#taMust').checked, 'today')){
+    $('#taTitle').value=''; $('#taMust').checked=false; taQuick.reset();
     $('#taTitle').focus();
   }
 });
 $('#ibAdd').addEventListener('click',()=>{
-  if(addTask($('#ibTitle').value, ibChips.deadline(), false, 'inbox')){
-    $('#ibTitle').value=''; ibChips.reset();
+  if(addTask($('#ibTitle').value, ibQuick.deadline(), false, 'inbox')){
+    $('#ibTitle').value=''; ibQuick.reset();
     $('#ibTitle').focus();
   }
 });
