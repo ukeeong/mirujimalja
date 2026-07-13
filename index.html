@@ -31,10 +31,10 @@
     <!-- 오늘 -->
     <section id="view-today" class="view">
       <div class="quickadd card">
-        <input id="taTitle" type="text" placeholder="할 일 입력" />
+        <input id="taTitle" type="text" placeholder="할 일 입력 후 Enter" />
+        <div class="chips" id="taChips"></div>
         <div class="qa-row">
-          <input id="taDeadline" type="datetime-local" />
-          <button id="taTomorrow" class="btn sm" type="button">내일 10:00</button>
+          <input id="taDeadline" type="datetime-local" hidden />
           <label class="mustlabel"><input id="taMust" type="checkbox" /> 무조건</label>
           <button id="taAdd" class="btn primary" type="button">추가</button>
         </div>
@@ -45,7 +45,11 @@
         <div id="nowTitle" class="now-title">선택된 일 없음</div>
         <div id="nowBig" class="now-big">--:--:--</div>
         <div id="nowStatus" class="subline"></div>
-        <button id="nowDone" class="btn sm" type="button" hidden>완료</button>
+        <div class="tools" id="nowTools" style="margin-top:10px" hidden>
+          <button id="nowDone" class="btn sm" type="button">완료</button>
+          <button id="nowPlus1" class="btn sm" type="button">+1시간</button>
+          <button id="nowPlus3" class="btn sm" type="button">+3시간</button>
+        </div>
       </div>
 
       <div class="section-title">🚩 오늘 무조건 <span class="hint">(다 끝내면 게임 해금)</span></div>
@@ -60,10 +64,10 @@
     <!-- 인박스 -->
     <section id="view-inbox" class="view" hidden>
       <div class="quickadd card">
-        <input id="ibTitle" type="text" placeholder="할 일 입력 (마감은 선택)" />
+        <input id="ibTitle" type="text" placeholder="할 일 입력 후 Enter (마감은 선택)" />
+        <div class="chips" id="ibChips"></div>
         <div class="qa-row">
-          <input id="ibDeadline" type="datetime-local" />
-          <button id="ibTomorrow" class="btn sm" type="button">내일 10:00</button>
+          <input id="ibDeadline" type="datetime-local" hidden />
           <button id="ibAdd" class="btn primary" type="button">추가</button>
         </div>
       </div>

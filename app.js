@@ -196,11 +196,13 @@ function renderInbox(){
 }
 function renderNow(){
   const t = tasks.find(x=>x.id===activeId && !x.dropped);
-  const titleEl=$('#nowTitle'), bigEl=$('#nowBig'), stEl=$('#nowStatus'), doneBtn=$('#nowDone');
-  if(!t){ titleEl.textContent='선택된 일 없음'; bigEl.textContent='--:--:--'; bigEl.className='now-big'; stEl.textContent=''; doneBtn.hidden=true; return; }
+  const titleEl=$('#nowTitle'), bigEl=$('#nowBig'), stEl=$('#nowStatus'), doneBtn=$('#nowDone'), tools=$('#nowTools');
+  if(!t){ titleEl.textContent='선택된 일 없음'; bigEl.textContent='--:--:--'; bigEl.className='now-big'; stEl.textContent=''; tools.hidden=true; return; }
   titleEl.textContent = t.title;
-  doneBtn.hidden = false;
+  tools.hidden = false;
   doneBtn.textContent = t.done ? '완료됨 ✓' : '완료';
+  $('#nowPlus1').hidden = t.done;
+  $('#nowPlus3').hidden = t.done;
   if(t.done){ bigEl.textContent='완료'; bigEl.className='now-big'; bigEl.style.color='var(--ok)'; stEl.textContent=''; return; }
   bigEl.style.color='';
   if(!t.deadline){ bigEl.textContent='--:--:--'; bigEl.className='now-big'; stEl.textContent='마감 없음'; return; }
@@ -533,22 +535,70 @@ document.querySelectorAll('.tab').forEach(b=>{
   });
 });
 
+// ----- 마감 칩 -----
+function setupChips(chipsId, dlId){
+  const box = document.getElementById(chipsId), dl = document.getElementById(dlId);
+  let sel = 'none';
+  const presets = [
+    ['none','마감 없음', ()=>null],
+    ['ev','오늘 18:00', ()=>{ const d=new Date(); d.setHours(18,0,0,0); return d; }],
+    ['nt','오늘 22:00', ()=>{ const d=new Date(); d.setHours(22,0,0,0); return d; }],
+    ['tm','내일 10:00', ()=>tomorrowAt10()],
+    ['cu','직접', ()=>dl.value ? new Date(dl.value) : null],
+  ];
+  function paint(){
+    box.querySelectorAll('.mini').forEach(b=>b.classList.toggle('on', b.dataset.k===sel));
+    dl.hidden = sel!=='cu';
+  }
+  presets.forEach(([k,label,get])=>{
+    const b = document.createElement('button');
+    b.type='button'; b.className='mini'; b.dataset.k=k; b.textContent=label;
+    b.addEventListener('click',()=>{
+      if(k==='ev'||k==='nt'||k==='tm'){
+        if(get() < new Date()){ alert('이미 지난 시간이야!'); return; }
+      }
+      sel=k; paint();
+    });
+    box.appendChild(b);
+  });
+  paint();
+  return {
+    deadline(){ const d = presets.find(p=>p[0]===sel)[2](); return d ? d.toISOString() : null; },
+    reset(){ sel='none'; dl.value=''; paint(); }
+  };
+}
+const taChips = setupChips('taChips','taDeadline');
+const ibChips = setupChips('ibChips','ibDeadline');
+
+// ----- 마감 연장 -----
+function extendActive(hours){
+  const t = tasks.find(x=>x.id===activeId && !x.dropped);
+  if(!t || t.done) return;
+  const base = t.deadline ? new Date(t.deadline) : new Date();
+  base.setHours(base.getHours()+hours);
+  t.deadline = base.toISOString();
+  notified[t.id] = null;
+  save('tasks',tasks); renderAll();
+}
+
 // ----- 입력 이벤트 -----
-$('#taTomorrow').addEventListener('click',()=>{ $('#taDeadline').value = toLocalDT(tomorrowAt10()); });
-$('#ibTomorrow').addEventListener('click',()=>{ $('#ibDeadline').value = toLocalDT(tomorrowAt10()); });
 $('#taAdd').addEventListener('click',()=>{
-  const dl = $('#taDeadline').value ? new Date($('#taDeadline').value).toISOString() : null;
-  if(addTask($('#taTitle').value, dl, $('#taMust').checked, 'today')){
-    $('#taTitle').value=''; $('#taMust').checked=false;
+  if(addTask($('#taTitle').value, taChips.deadline(), $('#taMust').checked, 'today')){
+    $('#taTitle').value=''; $('#taMust').checked=false; taChips.reset();
+    $('#taTitle').focus();
   }
 });
 $('#ibAdd').addEventListener('click',()=>{
-  const dl = $('#ibDeadline').value ? new Date($('#ibDeadline').value).toISOString() : null;
-  if(addTask($('#ibTitle').value, dl, false, 'inbox')){ $('#ibTitle').value=''; }
+  if(addTask($('#ibTitle').value, ibChips.deadline(), false, 'inbox')){
+    $('#ibTitle').value=''; ibChips.reset();
+    $('#ibTitle').focus();
+  }
 });
 $('#taTitle').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#taAdd').click(); });
 $('#ibTitle').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#ibAdd').click(); });
 $('#nowDone').addEventListener('click',()=>{ if(activeId) toggleDone(activeId); });
+$('#nowPlus1').addEventListener('click',()=>extendActive(1));
+$('#nowPlus3').addEventListener('click',()=>extendActive(3));
 
 // 충동 모달
 $('#impulseBtn').addEventListener('click',impOpen);
