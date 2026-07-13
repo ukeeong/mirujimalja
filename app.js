@@ -13,6 +13,8 @@ let tasks = load('tasks', []);
 let impulses = load('impulses', []);
 let expenses = load('expenses', []);
 let postponeLog = load('postponeLog', []);
+let daylogs = load('daylogs', {}); // {dateKey:{unauthorized,freeday}}
+let lastCheckin = load('lastCheckin', null);
 let activeId = load('activeId', null);
 let notified = {}; // {taskId:{t10,t0}}
 
@@ -39,6 +41,7 @@ function won(n){ return n.toLocaleString('ko-KR')+'원'; }
 function visibleTasks(){ return tasks.filter(t=>!t.dropped); }
 function todayTasks(){ return visibleTasks().filter(t=>t.list==='today'); }
 function gate(){
+  if((daylogs[todayKey()]||{}).freeday) return { state:'freeday', label:'🏖 프리데이', cls:'dim' };
   const musts = todayTasks().filter(t=>t.must);
   const done = musts.filter(t=>t.done);
   if(musts.length===0) return { state:'none', label:'무조건 없음', cls:'dim' };
@@ -55,6 +58,9 @@ function renderGate(){
 
 // ----- 스트릭 / 기록 -----
 function dayStatus(key){
+  const log = daylogs[key]||{};
+  if(log.unauthorized) return 'r';
+  if(log.freeday) return 'f';
   const dones = tasks.filter(t=>t.done && t.doneAt && dayKey(t.doneAt)===key);
   if(dones.some(t=>t.must)) return 'g';
   if(dones.length>0) return 'y';
@@ -64,13 +70,15 @@ function streak(){
   let now=0, best=0, cur=0;
   const oneDay=86400000;
   for(let i=0;i<365;i++){
-    const ok = dayStatus(dayKey(Date.now()-i*oneDay))==='g';
-    if(i===0 && !ok) continue; // 오늘은 아직 진행 중일 수 있으니 어제부터 이어짐
-    if(ok) now++; else break;
+    const st = dayStatus(dayKey(Date.now()-i*oneDay));
+    if(st==='f') continue; // 프리데이는 스트릭을 깨지 않음
+    if(i===0 && st!=='g') continue; // 오늘은 아직 진행 중일 수 있으니 어제부터 이어짐
+    if(st==='g') now++; else break;
   }
   for(let i=364;i>=0;i--){
-    const ok = dayStatus(dayKey(Date.now()-i*oneDay))==='g';
-    if(ok){ cur++; best=Math.max(best,cur); } else cur=0;
+    const st = dayStatus(dayKey(Date.now()-i*oneDay));
+    if(st==='f') continue;
+    if(st==='g'){ cur++; best=Math.max(best,cur); } else cur=0;
   }
   return { now, best };
 }
@@ -259,6 +267,146 @@ function dropTask(id){
   renderAll();
 }
 
+// ----- 아침 체크인 -----
+const ci = { triage:{}, musts:new Set() };
+function yesterdayKey(){ return dayKey(Date.now()-86400000); }
+function todayStartTs(){
+  const d = new Date(Date.now()-DAY_START*3600000);
+  d.setHours(0,0,0,0);
+  return d.getTime()+DAY_START*3600000;
+}
+function leftoverTasks(){ return tasks.filter(t=>!t.dropped && t.list==='today' && !t.done); }
+function freedaysUsedThisMonth(){
+  const prefix = todayKey().slice(0,7);
+  return Object.keys(daylogs).filter(k=>k.startsWith(prefix) && daylogs[k].freeday).length;
+}
+function ciMaybeOpen(){
+  const tk = todayKey();
+  if(!lastCheckin){ lastCheckin=tk; save('lastCheckin',tk); return; } // 첫 사용은 체크인 생략
+  if(lastCheckin===tk) return;
+  if(!$('#checkinModal').hidden) return;
+  ciOpen();
+}
+function ciOpen(){
+  ci.triage={}; ci.musts=new Set();
+  $('#ciDate').textContent = new Date().toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'long'});
+  $('#checkinModal').hidden=false;
+  const yk = yesterdayKey();
+  const needQ1 = !(daylogs[yk]||{}).freeday && dayStatus(yk)!=='g';
+  ciShow(needQ1 ? 'q1' : (leftoverTasks().length ? 'q2' : 'q3'));
+}
+function ciShow(step){
+  $('#ciQ1').hidden = step!=='q1';
+  $('#ciQ2').hidden = step!=='q2';
+  $('#ciQ3').hidden = step!=='q3';
+  if(step==='q2') ciBuildTriage();
+  if(step==='q3') ciBuildQ3();
+}
+function ciBuildTriage(){
+  const box = $('#ciTriage'); box.innerHTML='';
+  leftoverTasks().forEach(t=>{
+    ci.triage[t.id] = ci.triage[t.id] || '나중에';
+    const row = document.createElement('div'); row.className='item';
+    const body = document.createElement('div'); body.className='body';
+    const title = document.createElement('div'); title.className='title'; title.textContent=t.title;
+    const meta = document.createElement('div'); meta.className='meta';
+    const bits=[];
+    if(t.postponed>0) bits.push(t.postponed+'회 미룸');
+    if(t.deadline && new Date(t.deadline)<Date.now()) bits.push(fmtShort((new Date(t.deadline)-Date.now())/1000)+' 초과');
+    meta.textContent = bits.join(' · ');
+    body.appendChild(title); body.appendChild(meta);
+    row.appendChild(body);
+    const seg = document.createElement('div'); seg.className='seg';
+    ['오늘 또','나중에','버리기'].forEach(choice=>{
+      const b = document.createElement('button');
+      b.type='button'; b.className='mini'+(ci.triage[t.id]===choice?' on':''); b.textContent=choice;
+      b.addEventListener('click',()=>{
+        if(choice==='오늘 또' && t.postponed>=3 && ci.triage[t.id]!=='오늘 또'){
+          if(!confirm(`벌써 ${t.postponed}회 미룬 일이야. 진짜 할 일 맞아?\n(쪼개거나 버리는 것도 방법)`)) return;
+        }
+        ci.triage[t.id]=choice;
+        seg.querySelectorAll('.mini').forEach(x=>x.classList.toggle('on',x.textContent===choice));
+      });
+      seg.appendChild(b);
+    });
+    row.appendChild(seg);
+    box.appendChild(row);
+  });
+}
+function ciApplyTriage(){
+  Object.entries(ci.triage).forEach(([id,choice])=>{
+    const t = tasks.find(x=>x.id===id); if(!t) return;
+    if(choice==='오늘 또'){ t.postponed++; t.must=false; }
+    else if(choice==='나중에'){ t.list='inbox'; t.must=false; }
+    else if(choice==='버리기'){ t.dropped=true; if(activeId===id){activeId=null;save('activeId',activeId);} }
+  });
+  // 어제 완료한 일은 보드에서 정리 (기록엔 남음)
+  const start = todayStartTs();
+  tasks.forEach(t=>{ if(t.list==='today' && t.done && t.doneAt && t.doneAt<start) t.list='archive'; });
+  save('tasks',tasks);
+}
+function ciBuildQ3(){
+  const box = $('#ciCandidates'); box.innerHTML='';
+  const cands = tasks.filter(t=>!t.dropped && !t.done && (
+    t.list==='today' || (t.list==='inbox' && t.deadline && (new Date(t.deadline)-Date.now()) < 2*86400000)
+  ));
+  if(cands.length===0){
+    const p = document.createElement('p'); p.className='subline'; p.textContent='후보가 없어. 보드에서 새로 추가해도 돼';
+    box.appendChild(p);
+  }
+  cands.forEach(t=>{
+    const row = document.createElement('div'); row.className='item';
+    const body = document.createElement('div'); body.className='body';
+    const title = document.createElement('div'); title.className='title'; title.textContent=t.title;
+    const meta = document.createElement('div'); meta.className='meta';
+    meta.textContent = t.deadline ? '마감 '+new Date(t.deadline).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : (t.list==='inbox'?'인박스':'');
+    body.appendChild(title); body.appendChild(meta);
+    row.appendChild(body);
+    const b = document.createElement('button');
+    b.type='button'; b.className='mini'+(ci.musts.has(t.id)?' on':''); b.textContent='🚩 무조건';
+    b.addEventListener('click',()=>{
+      if(ci.musts.has(t.id)) ci.musts.delete(t.id); else ci.musts.add(t.id);
+      b.classList.toggle('on',ci.musts.has(t.id));
+      $('#ciMustCount').textContent = ci.musts.size+'개';
+    });
+    row.appendChild(b);
+    box.appendChild(row);
+  });
+  $('#ciMustCount').textContent = ci.musts.size+'개';
+  // 프리데이: 정오 전 + 월 4회 한도
+  const used = freedaysUsedThisMonth();
+  const beforeNoon = new Date().getHours() < 12;
+  const row = $('#ciFreedayRow');
+  row.hidden = !beforeNoon || used>=4;
+  $('#ciFreedayInfo').textContent = `이번 달 ${used}/4 사용`;
+  $('#ciFreeday').checked = false;
+}
+$('#ciQ1Yes').addEventListener('click',()=>{
+  const yk = yesterdayKey();
+  daylogs[yk] = Object.assign(daylogs[yk]||{}, {unauthorized:true});
+  save('daylogs',daylogs);
+  ciShow(leftoverTasks().length ? 'q2' : 'q3');
+});
+$('#ciQ1No').addEventListener('click',()=>{ ciShow(leftoverTasks().length ? 'q2' : 'q3'); });
+$('#ciQ2Next').addEventListener('click',()=>{ ciApplyTriage(); ciShow('q3'); });
+$('#ciFinish').addEventListener('click',()=>{
+  const start = todayStartTs();
+  tasks.forEach(t=>{ if(t.list==='today' && t.done && t.doneAt && t.doneAt<start) t.list='archive'; });
+  ci.musts.forEach(id=>{
+    const t = tasks.find(x=>x.id===id); if(!t) return;
+    t.must=true; t.list='today';
+  });
+  const tk = todayKey();
+  if($('#ciFreeday').checked && !$('#ciFreedayRow').hidden){
+    daylogs[tk] = Object.assign(daylogs[tk]||{}, {freeday:true});
+    save('daylogs',daylogs);
+  }
+  lastCheckin = tk; save('lastCheckin',lastCheckin);
+  save('tasks',tasks);
+  $('#checkinModal').hidden=true;
+  renderAll();
+});
+
 // ----- 충동 -----
 let impKind = null, impTimer = null, impRemain = 0;
 function impShow(step){
@@ -434,6 +582,7 @@ function renderAll(){
   else if(curView==='records') renderRecords();
 }
 setInterval(()=>{
+  ciMaybeOpen(); // 앱 켜둔 채 날이 바뀌어도 체크인이 뜨게
   if(curView==='today'){
     renderNow();
     document.querySelectorAll('.remain').forEach(updateRemainPill);
@@ -454,4 +603,5 @@ $('#exAdd').addEventListener('click',()=>{
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 
 renderAll();
+ciMaybeOpen();
 })();
