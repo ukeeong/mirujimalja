@@ -29,9 +29,8 @@ function fmtHMS(sec){ sec=Math.max(0,Math.floor(sec)); const h=Math.floor(sec/36
 function fmtShort(sec){
   sec = Math.floor(Math.abs(sec));
   const d = Math.floor(sec/86400), h = Math.floor((sec%86400)/3600), m = Math.floor((sec%3600)/60);
-  if(d>0) return h>0 ? `${d}일 ${h}시간` : `${d}일`;
-  if(h>0) return m>0 ? `${h}시간 ${m}분` : `${h}시간`;
-  return `${Math.max(1,m)}분`;
+  if(d>0) return `${d}일`;
+  return `${h}:${pad(m)}`; // 예: 2:19, 0:44
 }
 function dayKey(t){
   const d = new Date((t??Date.now()) - DAY_START*3600*1000);
