@@ -56,6 +56,34 @@ function renderGate(){
   el.textContent = g.label;
   el.className = 'pill '+g.cls;
   $('#streakBadge').textContent = '🔥 '+streak().now+'일';
+  // 큰 게이트 배너 (오늘 보드 최상단)
+  const musts = todayTasks().filter(t=>t.must);
+  const done = musts.filter(t=>t.done).length;
+  const banner = $('#gateBanner');
+  const icon = $('#gbIcon'), label = $('#gbLabel'), sub = $('#gbSub'), barWrap = $('#gbBarWrap'), bar = $('#gbBar');
+  if(g.state==='freeday'){
+    banner.className='gatebanner none';
+    icon.textContent='🏖'; label.textContent='프리데이';
+    sub.textContent='오늘은 게이트 없음. 편하게 쉬어';
+    barWrap.hidden=true;
+  } else if(g.state==='none'){
+    banner.className='gatebanner none';
+    icon.textContent='🎮'; label.textContent='무조건 없는 날 — 게이트 꺼짐';
+    sub.textContent='잠그고 싶으면 할 일에 🚩 무조건을 걸어봐';
+    barWrap.hidden=true;
+  } else if(g.state==='locked'){
+    banner.className='gatebanner locked';
+    icon.textContent='🔒'; label.textContent='게임 잠김';
+    sub.textContent=`무조건 ${musts.length-done}개 남음 — 다 끝내면 해금 (${done}/${musts.length})`;
+    barWrap.hidden=false;
+    bar.style.width = Math.round(done/musts.length*100)+'%';
+  } else {
+    banner.className='gatebanner open';
+    icon.textContent='🔓'; label.textContent='오늘 게임 OK';
+    sub.textContent=`무조건 ${musts.length}개 전부 완료! 죄책감 없이 즐겨`;
+    barWrap.hidden=false;
+    bar.style.width='100%';
+  }
 }
 
 // ----- 스트릭 / 기록 -----
@@ -129,7 +157,7 @@ function updateRemainPill(span){
 }
 function buildRow(t, ctx){
   const row = document.createElement('div');
-  row.className = 'item'+(t.done?' done':'')+(t.id===activeId?' active':'');
+  row.className = 'item'+(t.done?' done':'')+(t.id===activeId?' active':'')+(t.must&&!t.done?' must':'');
 
   const chk = document.createElement('button');
   chk.className='chk'; chk.textContent='✓'; chk.title='완료 토글';

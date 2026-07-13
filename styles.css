@@ -53,6 +53,23 @@ input[type="text"],input[type="number"],input[type="datetime-local"]{
 .pill.bad{color:var(--bad);border-color:#4a1f26;background:rgba(239,68,68,.08)}
 .pill.dim{color:var(--sub)}
 
+.gatebanner{border-radius:16px;padding:14px 16px;border:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.gatebanner .gb-main{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700}
+.gatebanner .gb-sub{font-size:12px;color:var(--sub)}
+.gatebanner.locked{background:rgba(239,68,68,.08);border-color:#4a1f26}
+.gatebanner.locked .gb-main{color:#ff9b9b}
+.gatebanner.open{background:rgba(34,197,94,.12);border-color:#2a5c3f}
+.gatebanner.open .gb-main{color:var(--ok)}
+.gatebanner.open .gb-sub{color:#7fd7a0}
+.gatebanner.none{background:var(--panel);padding:10px 16px}
+.gatebanner.none .gb-main{font-size:14px;font-weight:500;color:var(--sub)}
+.gb-bar{height:6px;background:#22232e;border-radius:3px;overflow:hidden;margin-top:2px}
+.gb-bar div{height:6px;background:var(--ok);border-radius:3px;transition:width .3s}
+
+.item.must{border-color:#5d5ec9;background:#191a2e}
+.item.must .title{color:#e6e6ff}
+.item .mini.flag.on{color:#b9baff;border-color:#6b6cf0;background:#232458}
+
 .nowcard .now-title{font-size:20px;font-weight:600;margin-top:6px;line-height:1.3}
 .now-big{font-size:44px;font-weight:800;letter-spacing:1px;font-variant-numeric:tabular-nums;margin-top:4px}
 .now-big.over{color:var(--bad)}
@@ -73,7 +90,6 @@ input[type="text"],input[type="number"],input[type="datetime-local"]{
 .mini{padding:4px 7px;font-size:11px;border-radius:8px;border:1px solid #2a2b36;background:#181923;color:var(--sub);cursor:pointer;font-family:inherit}
 .mini:hover{color:var(--ink)}
 .mini.on{border-color:var(--accent);color:#c9c9ff;background:#1d1e2e}
-.item .mini.flag.on{color:var(--accent);border-color:#3d3d75}
 
 .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .statgrid.three{grid-template-columns:1fr 1fr 1fr;text-align:center}
@@ -123,6 +139,7 @@ input[type="text"],input[type="number"],input[type="datetime-local"]{
 .rt-bar{height:5px;background:#22232e;border-radius:3px;overflow:hidden}
 .rt-bar div{height:5px;background:var(--accent);border-radius:3px}
 .rt-today .pill{font-size:11px}
+.rt-today:empty{display:none}
 #rtDays{display:flex;gap:4px}
 #rtDays .mini{flex:1;text-align:center;border-radius:8px}
 #rtTypes .mini{flex:1;text-align:center;border-radius:8px}
