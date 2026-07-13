@@ -1,0 +1,14 @@
+{
+  "name": "미루지말자",
+  "short_name": "미루지말자",
+  "description": "오늘 무조건 할 일을 끝내야 게임이 열리는 ADHD 스케줄러",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0b0b10",
+  "theme_color": "#0b0b10",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

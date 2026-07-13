@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0b0b10" />
+<title>미루지말자</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>미루지말자</h1>
+    <div class="top-right">
+      <span id="gateBadge" class="pill">무조건 없음</span>
+      <span id="streakBadge" class="pill dim">🔥 0일</span>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-view="today">오늘</button>
+    <button class="tab" data-view="inbox">인박스</button>
+    <button class="tab" data-view="budget">가계부</button>
+    <button class="tab" data-view="records">기록</button>
+  </nav>
+
+  <main>
+    <!-- 오늘 -->
+    <section id="view-today" class="view">
+      <div class="quickadd card">
+        <input id="taTitle" type="text" placeholder="할 일 입력" />
+        <div class="qa-row">
+          <input id="taDeadline" type="datetime-local" />
+          <button id="taTomorrow" class="btn sm" type="button">내일 10:00</button>
+          <label class="mustlabel"><input id="taMust" type="checkbox" /> 무조건</label>
+          <button id="taAdd" class="btn primary" type="button">추가</button>
+        </div>
+      </div>
+
+      <div id="nowCard" class="card nowcard">
+        <div class="section-title">지금 하는 일 <span class="hint">(목록에서 항목을 누르면 선택)</span></div>
+        <div id="nowTitle" class="now-title">선택된 일 없음</div>
+        <div id="nowBig" class="now-big">--:--:--</div>
+        <div id="nowStatus" class="subline"></div>
+        <button id="nowDone" class="btn sm" type="button" hidden>완료</button>
+      </div>
+
+      <div class="section-title">🚩 오늘 무조건 <span class="hint">(다 끝내면 게임 해금)</span></div>
+      <div id="mustList" class="list"></div>
+
+      <div class="section-title">오늘 할 일</div>
+      <div id="todayList" class="list"></div>
+
+      <button id="impulseBtn" class="btn impulse" type="button">⚡ 충동 왔다</button>
+    </section>
+
+    <!-- 인박스 -->
+    <section id="view-inbox" class="view" hidden>
+      <div class="quickadd card">
+        <input id="ibTitle" type="text" placeholder="할 일 입력 (마감은 선택)" />
+        <div class="qa-row">
+          <input id="ibDeadline" type="datetime-local" />
+          <button id="ibTomorrow" class="btn sm" type="button">내일 10:00</button>
+          <button id="ibAdd" class="btn primary" type="button">추가</button>
+        </div>
+      </div>
+      <div class="section-title">마감 임박</div>
+      <div id="imminentList" class="list"></div>
+      <div class="section-title">나머지</div>
+      <div id="inboxList" class="list"></div>
+    </section>
+
+    <!-- 가계부 -->
+    <section id="view-budget" class="view" hidden>
+      <div class="statgrid">
+        <div class="card stat"><div class="stat-label">이번 달 지출</div><div id="monthTotal" class="stat-num">0원</div></div>
+        <div class="card stat ok"><div class="stat-label">참은돈 저금통</div><div id="savedTotal" class="stat-num">0원</div></div>
+      </div>
+      <div class="card">
+        <input id="exAmount" type="number" inputmode="numeric" placeholder="금액" />
+        <div id="exCats" class="cats"></div>
+        <div class="qa-row">
+          <input id="exMemo" type="text" placeholder="메모 (선택)" />
+          <button id="exAdd" class="btn primary" type="button">기록</button>
+        </div>
+      </div>
+      <div class="section-title">카테고리별</div>
+      <div id="catList" class="list"></div>
+      <div class="section-title">최근 지출</div>
+      <div id="exList" class="list"></div>
+    </section>
+
+    <!-- 기록 -->
+    <section id="view-records" class="view" hidden>
+      <div class="statgrid">
+        <div class="card stat"><div class="stat-label">현재 스트릭</div><div id="streakNow" class="stat-num">0일</div></div>
+        <div class="card stat"><div class="stat-label">최고 기록</div><div id="streakBest" class="stat-num">0일</div></div>
+      </div>
+      <div class="card">
+        <div class="section-title">최근 4주</div>
+        <div id="heatmap" class="heatmap"></div>
+        <div class="legend">
+          <span><i class="dot g"></i>무조건 완료</span>
+          <span><i class="dot y"></i>일부 완료</span>
+          <span><i class="dot e"></i>기록 없음</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-title">이번 주</div>
+        <div class="statgrid three">
+          <div><div id="wkDone" class="stat-num">0</div><div class="stat-label">완료</div></div>
+          <div><div id="wkImpulse" class="stat-num">0</div><div class="stat-label">충동 지연</div></div>
+          <div><div id="wkPostpone" class="stat-num">0</div><div class="stat-label">미루기</div></div>
+        </div>
+      </div>
+      <div class="tools">
+        <button id="exportBtn" class="btn sm" type="button">내보내기(JSON)</button>
+        <button id="importBtn" class="btn sm" type="button">불러오기(JSON)</button>
+        <input id="importFile" type="file" accept="application/json" hidden />
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 충동 모달 -->
+<div id="impulseModal" class="modal" hidden>
+  <div class="modal-box card">
+    <div id="impPick">
+      <div class="section-title">뭐가 하고 싶어?</div>
+      <div class="cats" id="impKinds"></div>
+      <button id="impStart" class="btn primary wide" type="button">10분만 미루기</button>
+    </div>
+    <div id="impRun" hidden>
+      <div class="section-title" id="impRunLabel">충동 지나가는 중</div>
+      <div id="impBig" class="now-big center">10:00</div>
+      <p class="subline center">충동은 파도야. 보통 10분이면 지나가</p>
+      <button id="impGiveup" class="btn sm wide dim" type="button">그냥 할래</button>
+    </div>
+    <div id="impResult" hidden>
+      <div class="section-title">아직도 하고 싶어?</div>
+      <button id="impPassed" class="btn ok wide" type="button">✓ 지나갔어</button>
+      <button id="impDid" class="btn wide" type="button">그냥 할래</button>
+      <p class="subline center">어느 쪽이든 기록만 남아</p>
+    </div>
+    <button id="impClose" class="btn sm wide dim" type="button">닫기</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
