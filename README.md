@@ -30,7 +30,7 @@ python3 -m http.server 8321
 
 | 파일 | 역할 |
 |---|---|
-| `index.html` | 화면 구조 (오늘/인박스/가계부/기록 4탭 + 충동 모달) |
+| `index.html` | 화면 구조 (오늘/루틴/인박스/가계부/기록 5탭 + 체크인·충동 모달) |
 | `app.js` | 전체 로직 (게이트, 타이머, 충동 10분, 가계부, 히트맵) |
 | `styles.css` | 다크 테마 스타일 |
 | `manifest.webmanifest` / `sw.js` / `icon.svg` | PWA (설치·오프라인) |

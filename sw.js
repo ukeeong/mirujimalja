@@ -1,4 +1,4 @@
-const CACHE = 'mnj-v5';
+const CACHE = 'mnj-v6';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (e) => {

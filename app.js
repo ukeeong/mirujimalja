@@ -14,6 +14,8 @@ let impulses = load('impulses', []);
 let expenses = load('expenses', []);
 let postponeLog = load('postponeLog', []);
 let daylogs = load('daylogs', {}); // {dateKey:{unauthorized,freeday}}
+let routines = load('routines', []); // [{id,name,type,days,perWeek,paused,reward,createdAt}]
+let rlogs = load('rlogs', []); // [{rid,day}]
 let lastCheckin = load('lastCheckin', null);
 let activeId = load('activeId', null);
 let notified = {}; // {taskId:{t10,t0}}
@@ -269,6 +271,205 @@ function dropTask(id){
   renderAll();
 }
 
+// ----- 루틴 -----
+const WEEKDAYS = ['일','월','화','수','목','금','토'];
+function shiftedDate(t){ return new Date((t??Date.now()) - DAY_START*3600000); }
+function keyToDate(key){ const [y,m,d] = key.split('-').map(Number); return new Date(y, m-1, d); }
+function weekStartOfKey(key){
+  const d = keyToDate(key);
+  d.setDate(d.getDate() - (d.getDay()+6)%7); // 월요일 시작
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+function rlogHas(rid, day){ return rlogs.some(l=>l.rid===rid && l.day===day); }
+function rlogCount(rid){ return rlogs.filter(l=>l.rid===rid).length; }
+function weekCount(rid, refKey){
+  const ws = weekStartOfKey(refKey ?? todayKey());
+  return rlogs.filter(l=>l.rid===rid && weekStartOfKey(l.day)===ws).length;
+}
+function dueToday(r){
+  if(r.paused) return false;
+  if(r.type==='daily') return true;
+  if(r.type==='days') return r.days.includes(shiftedDate().getDay());
+  if(r.type==='weekly') return rlogHas(r.id, todayKey()) || weekCount(r.id) < r.perWeek;
+  return false;
+}
+function routineStreak(r){
+  const oneDay = 86400000;
+  let now=0, best=0, cur=0, unit = r.type==='weekly' ? '주' : '일';
+  if(r.type==='weekly'){
+    const thisWs = weekStartOfKey(todayKey());
+    for(let w=0; w<104; w++){
+      const ref = dayKey(Date.now()-w*7*oneDay);
+      const met = weekCount(r.id, ref) >= r.perWeek;
+      if(w===0 && !met && weekStartOfKey(ref)===thisWs) continue; // 이번 주는 아직 진행 중
+      if(met) now++; else break;
+    }
+    for(let w=103; w>=0; w--){
+      const met = weekCount(r.id, dayKey(Date.now()-w*7*oneDay)) >= r.perWeek;
+      if(met){ cur++; best=Math.max(best,cur); } else cur=0;
+    }
+    return { now, best, unit };
+  }
+  const scheduled = (key)=>{
+    if(r.type==='daily') return !(daylogs[key]||{}).freeday; // 프리데이는 건너뜀
+    return r.days.includes(keyToDate(key).getDay());
+  };
+  for(let i=0; i<365; i++){
+    const key = dayKey(Date.now()-i*oneDay);
+    if(!scheduled(key)) continue;
+    if(rlogHas(r.id,key)) now++;
+    else { if(i===0) continue; break; } // 오늘은 아직 진행 중
+  }
+  cur=0;
+  for(let i=364; i>=0; i--){
+    const key = dayKey(Date.now()-i*oneDay);
+    if(!scheduled(key)) continue;
+    if(rlogHas(r.id,key)){ cur++; best=Math.max(best,cur); } else cur=0;
+  }
+  return { now, best, unit };
+}
+function rewardProgress(r){
+  if(!r.reward) return null;
+  const done = Math.max(0, rlogCount(r.id) - r.reward.base);
+  return { done, goal: r.reward.goal, left: Math.max(0, r.reward.goal-done), achieved: done >= r.reward.goal };
+}
+function toggleRoutineToday(rid){
+  const r = routines.find(x=>x.id===rid); if(!r) return;
+  const day = todayKey();
+  const before = r.reward ? rewardProgress(r).achieved : true;
+  const i = rlogs.findIndex(l=>l.rid===rid && l.day===day);
+  if(i>=0) rlogs.splice(i,1); else rlogs.push({rid, day});
+  save('rlogs', rlogs);
+  if(r.reward && !before && rewardProgress(r).achieved){
+    playMelody();
+    setTimeout(()=>alert(`🎁 보상 달성!\n"${r.name}" ${r.reward.goal}회 완료 — ${r.reward.text}\n루틴 탭에서 [보상 받았어]를 눌러줘!`), 50);
+  }
+  renderAll();
+}
+function routineSummary(r){
+  if(r.type==='daily') return '매일';
+  if(r.type==='days') return r.days.slice().sort().map(d=>WEEKDAYS[d]).join('');
+  return `주 ${r.perWeek}회`;
+}
+function routineBadge(r){
+  const s = routineStreak(r);
+  if(r.type==='weekly') return `이번 주 ${weekCount(r.id)}/${r.perWeek}`;
+  return s.now>0 ? `${s.now}일째` : '';
+}
+function renderRoutineToday(){
+  const due = routines.filter(dueToday);
+  $('#rtTodayTitle').hidden = due.length===0;
+  const box = $('#rtTodayList'); box.innerHTML='';
+  due.forEach(r=>{
+    const row = document.createElement('div'); row.className='item'+(rlogHas(r.id,todayKey())?' done':'');
+    const chk = document.createElement('button'); chk.className='chk'; chk.textContent='✓';
+    chk.addEventListener('click',(e)=>{ e.stopPropagation(); toggleRoutineToday(r.id); });
+    const body = document.createElement('div'); body.className='body';
+    body.innerHTML = `<div class="title">${r.name}</div>`;
+    const pill = document.createElement('span'); pill.className='pill dim'; pill.textContent = routineBadge(r) || routineSummary(r);
+    row.appendChild(chk); row.appendChild(body); row.appendChild(pill);
+    box.appendChild(row);
+  });
+}
+let rtCalOpen = null;
+function renderRoutines(){
+  const box = $('#rtList'); box.innerHTML='';
+  routines.forEach(r=>{
+    const card = document.createElement('div'); card.className='card rt-card';
+    if(r.paused) card.style.opacity=.55;
+    const s = routineStreak(r);
+    const top = document.createElement('div'); top.className='rt-top';
+    top.innerHTML = `<span class="title">${r.name}</span><span class="pill dim">🔥 ${s.now}${s.unit} (최고 ${s.best})</span>`;
+    card.appendChild(top);
+    const sub = document.createElement('div'); sub.className='meta';
+    let subTxt = routineSummary(r);
+    if(r.type==='weekly') subTxt += ` · 이번 주 ${'●'.repeat(weekCount(r.id))}${'○'.repeat(Math.max(0,r.perWeek-weekCount(r.id)))}`;
+    sub.textContent = subTxt;
+    card.appendChild(sub);
+    const rp = rewardProgress(r);
+    if(rp){
+      const rw = document.createElement('div'); rw.className='rt-reward';
+      if(rp.achieved){
+        rw.innerHTML = `<span>🎁 달성! ${r.reward.text}</span>`;
+        const claim = document.createElement('button'); claim.className='mini'; claim.textContent='보상 받았어';
+        claim.addEventListener('click',()=>{ r.reward=null; save('routines',routines); renderAll(); });
+        rw.appendChild(claim);
+      } else {
+        rw.innerHTML = `<span>🎁 ${r.reward.text}까지 <b>${rp.left}회</b></span><div class="rt-bar"><div style="width:${Math.min(100,Math.round(rp.done/rp.goal*100))}%"></div></div>`;
+      }
+      card.appendChild(rw);
+    }
+    const tools = document.createElement('div'); tools.className='tools'; tools.style.marginTop='8px';
+    const calBtn = document.createElement('button'); calBtn.className='mini'; calBtn.textContent = rtCalOpen===r.id?'달력 접기':'📅 달력';
+    calBtn.addEventListener('click',()=>{ rtCalOpen = rtCalOpen===r.id?null:r.id; renderRoutines(); });
+    const pauseBtn = document.createElement('button'); pauseBtn.className='mini'; pauseBtn.textContent = r.paused?'재개':'일시정지';
+    pauseBtn.addEventListener('click',()=>{ r.paused=!r.paused; save('routines',routines); renderAll(); });
+    const delBtn = document.createElement('button'); delBtn.className='mini'; delBtn.textContent='삭제';
+    delBtn.addEventListener('click',()=>{
+      if(!confirm(`"${r.name}" 루틴을 삭제할까? (기록도 사라져)`)) return;
+      routines = routines.filter(x=>x.id!==r.id);
+      rlogs = rlogs.filter(l=>l.rid!==r.id);
+      save('routines',routines); save('rlogs',rlogs); renderAll();
+    });
+    tools.appendChild(calBtn); tools.appendChild(pauseBtn); tools.appendChild(delBtn);
+    card.appendChild(tools);
+    if(rtCalOpen===r.id){
+      const cal = document.createElement('div');
+      cal.className='heatmap rt-cal'; cal.style.marginTop='8px';
+      for(let i=34;i>=0;i--){
+        const key = dayKey(Date.now()-i*86400000);
+        const cell = document.createElement('div');
+        cell.className = 'hm-cell'+(rlogHas(r.id,key)?' g':'')+(key===todayKey()?' today':'');
+        cell.title = key;
+        cal.appendChild(cell);
+      }
+      card.appendChild(cal);
+    }
+    box.appendChild(card);
+  });
+  if(routines.length===0) box.innerHTML = '<p class="subline">아직 루틴이 없어. 위에서 첫 루틴을 만들어봐!</p>';
+}
+// 루틴 추가 폼
+let rtType = 'daily', rtSelDays = new Set();
+(function(){
+  const typesBox = $('#rtTypes');
+  [['daily','매일'],['days','요일 지정'],['weekly','주 N회']].forEach(([k,label])=>{
+    const b = document.createElement('button');
+    b.type='button'; b.className='mini'+(k===rtType?' on':''); b.dataset.k=k; b.textContent=label;
+    b.addEventListener('click',()=>{
+      rtType=k;
+      typesBox.querySelectorAll('.mini').forEach(x=>x.classList.toggle('on',x.dataset.k===k));
+      $('#rtDays').hidden = k!=='days';
+      $('#rtWeeklyRow').hidden = k!=='weekly';
+      $('#rtHint').textContent = k==='daily'?'매일 반복 (프리데이는 스트릭 안 끊김)':k==='days'?'선택한 요일에만':'일주일 안에 채우면 OK, 언제 하든 자유';
+    });
+    typesBox.appendChild(b);
+  });
+  const daysBox = $('#rtDays');
+  [1,2,3,4,5,6,0].forEach(d=>{
+    const b = document.createElement('button');
+    b.type='button'; b.className='mini'; b.textContent=WEEKDAYS[d];
+    b.addEventListener('click',()=>{
+      if(rtSelDays.has(d)) rtSelDays.delete(d); else rtSelDays.add(d);
+      b.classList.toggle('on', rtSelDays.has(d));
+    });
+    daysBox.appendChild(b);
+  });
+})();
+$('#rtAdd').addEventListener('click',()=>{
+  const name = $('#rtName').value.trim();
+  if(!name){ alert('루틴 이름을 입력해줘!'); return; }
+  if(rtType==='days' && rtSelDays.size===0){ alert('요일을 골라줘!'); return; }
+  const perWeek = Math.min(7, Math.max(1, parseInt($('#rtPerWeek').value,10)||3));
+  const goal = parseInt($('#rtRewardGoal').value,10);
+  const text = $('#rtRewardText').value.trim();
+  const reward = (goal>0 && text) ? { goal, text, base:0 } : null;
+  routines.push({ id:uid(), name, type:rtType, days:[...rtSelDays], perWeek, paused:false, reward, createdAt:Date.now() });
+  save('routines',routines);
+  $('#rtName').value=''; $('#rtRewardGoal').value=''; $('#rtRewardText').value='';
+  renderAll();
+});
+
 // ----- 아침 체크인 -----
 const ci = { triage:{}, musts:new Set() };
 function yesterdayKey(){ return dayKey(Date.now()-86400000); }
@@ -506,7 +707,7 @@ function renderRecords(){
 
 // ----- 내보내기 / 불러오기 -----
 $('#exportBtn').addEventListener('click',()=>{
-  const blob = new Blob([JSON.stringify({tasks,impulses,expenses,postponeLog,activeId},null,2)],{type:'application/json'});
+  const blob = new Blob([JSON.stringify({tasks,impulses,expenses,postponeLog,daylogs,routines,rlogs,lastCheckin,activeId},null,2)],{type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href=url; a.download='mirujimalja_backup.json'; a.click();
   URL.revokeObjectURL(url);
@@ -517,8 +718,10 @@ $('#importFile').addEventListener('change',async(e)=>{
   try{
     const data = JSON.parse(await f.text());
     if(!Array.isArray(data.tasks)) throw new Error('형식 오류');
-    tasks=data.tasks; impulses=data.impulses||[]; expenses=data.expenses||[]; postponeLog=data.postponeLog||[]; activeId=data.activeId??null;
-    save('tasks',tasks); save('impulses',impulses); save('expenses',expenses); save('postponeLog',postponeLog); save('activeId',activeId);
+    tasks=data.tasks; impulses=data.impulses||[]; expenses=data.expenses||[]; postponeLog=data.postponeLog||[];
+    daylogs=data.daylogs||{}; routines=data.routines||[]; rlogs=data.rlogs||[]; lastCheckin=data.lastCheckin??null; activeId=data.activeId??null;
+    save('tasks',tasks); save('impulses',impulses); save('expenses',expenses); save('postponeLog',postponeLog);
+    save('daylogs',daylogs); save('routines',routines); save('rlogs',rlogs); save('lastCheckin',lastCheckin); save('activeId',activeId);
     renderAll(); alert('불러오기 완료!');
   }catch(err){ alert('불러오기 실패: '+err.message); }
   finally{ e.target.value=''; }
@@ -669,7 +872,8 @@ $('#impDid').addEventListener('click',()=>impRecord('did'));
 // ----- 렌더 루프 -----
 function renderAll(){
   renderGate();
-  if(curView==='today') renderToday();
+  if(curView==='today'){ renderRoutineToday(); renderToday(); }
+  else if(curView==='routine') renderRoutines();
   else if(curView==='inbox') renderInbox();
   else if(curView==='budget') renderBudget();
   else if(curView==='records') renderRecords();
