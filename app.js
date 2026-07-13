@@ -12,6 +12,7 @@ function load(k,d){ try{ const v = JSON.parse(localStorage.getItem('mnj.'+k)); r
 let tasks = load('tasks', []);
 let impulses = load('impulses', []);
 let expenses = load('expenses', []);
+let savings = load('savings', []); // 직접 기록한 참은돈 [{id,at,amount,memo}]
 let postponeLog = load('postponeLog', []);
 let daylogs = load('daylogs', {}); // {dateKey:{unauthorized,freeday}}
 let routines = load('routines', []); // [{id,name,type,days,perWeek,paused,reward,createdAt}]
@@ -681,11 +682,16 @@ function impRecord(result){
 
 // ----- 가계부 -----
 let exCat = CATS[0];
+let exMode = 'spend'; // 'spend' | 'saved'
+function savedTotal(){
+  return impulses.filter(i=>i.result==='passed'&&i.amount).reduce((s,i)=>s+i.amount,0)
+       + savings.reduce((s,x)=>s+x.amount,0);
+}
 function renderBudget(){
   const now = new Date();
   const month = expenses.filter(e=>{ const d=new Date(e.at); return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth(); });
   $('#monthTotal').textContent = won(month.reduce((s,e)=>s+e.amount,0));
-  $('#savedTotal').textContent = won(impulses.filter(i=>i.result==='passed'&&i.amount).reduce((s,i)=>s+i.amount,0));
+  $('#savedTotal').textContent = won(savedTotal());
   const cl = $('#catList'); cl.innerHTML='';
   CATS.forEach(c=>{
     const sum = month.filter(e=>e.cat===c).reduce((s,e)=>s+e.amount,0);
@@ -695,13 +701,32 @@ function renderBudget(){
     cl.appendChild(row);
   });
   const el = $('#exList'); el.innerHTML='';
-  expenses.slice(-5).reverse().forEach(e=>{
+  const spendItems = expenses.map(e=>({...e, kind:'spend'}));
+  const savedItems = savings.map(s=>({...s, kind:'saved'}))
+    .concat(impulses.filter(i=>i.result==='passed'&&i.amount).map(i=>({id:i.id, at:i.at, amount:i.amount, memo:'충동 참기 성공', kind:'saved'})));
+  spendItems.concat(savedItems).sort((a,b)=>b.at-a.at).slice(0,7).forEach(e=>{
     const row = document.createElement('div'); row.className='item';
     const d = new Date(e.at);
-    row.innerHTML = `<div class="body"><div class="title">${e.memo||e.cat}</div><div class="meta">${d.getMonth()+1}/${d.getDate()} · ${e.cat}</div></div><span class="pill dim">${won(e.amount)}</span>`;
+    if(e.kind==='saved'){
+      row.innerHTML = `<div class="body"><div class="title">💰 ${e.memo||'참은돈'}</div><div class="meta">${d.getMonth()+1}/${d.getDate()} · 안 쓴 돈</div></div><span class="pill ok">+${won(e.amount)}</span>`;
+    } else {
+      row.innerHTML = `<div class="body"><div class="title">${e.memo||e.cat}</div><div class="meta">${d.getMonth()+1}/${d.getDate()} · ${e.cat}</div></div><span class="pill dim">${won(e.amount)}</span>`;
+    }
     el.appendChild(row);
   });
 }
+$('#exModeSpend').addEventListener('click',()=>{
+  exMode='spend';
+  $('#exModeSpend').classList.add('on'); $('#exModeSaved').classList.remove('on');
+  $('#exCats').hidden=false;
+  $('#exMemo').placeholder='메모 (선택)';
+});
+$('#exModeSaved').addEventListener('click',()=>{
+  exMode='saved';
+  $('#exModeSaved').classList.add('on'); $('#exModeSpend').classList.remove('on');
+  $('#exCats').hidden=true;
+  $('#exMemo').placeholder='뭘 참았어? (예: 키보드 지름 참음)';
+});
 function renderCatButtons(){
   const box = $('#exCats'); box.innerHTML='';
   CATS.forEach(c=>{
@@ -735,7 +760,7 @@ function renderRecords(){
 
 // ----- 내보내기 / 불러오기 -----
 $('#exportBtn').addEventListener('click',()=>{
-  const blob = new Blob([JSON.stringify({tasks,impulses,expenses,postponeLog,daylogs,routines,rlogs,lastCheckin,activeId},null,2)],{type:'application/json'});
+  const blob = new Blob([JSON.stringify({tasks,impulses,expenses,savings,postponeLog,daylogs,routines,rlogs,lastCheckin,activeId},null,2)],{type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href=url; a.download='mirujimalja_backup.json'; a.click();
   URL.revokeObjectURL(url);
@@ -746,9 +771,9 @@ $('#importFile').addEventListener('change',async(e)=>{
   try{
     const data = JSON.parse(await f.text());
     if(!Array.isArray(data.tasks)) throw new Error('형식 오류');
-    tasks=data.tasks; impulses=data.impulses||[]; expenses=data.expenses||[]; postponeLog=data.postponeLog||[];
+    tasks=data.tasks; impulses=data.impulses||[]; expenses=data.expenses||[]; savings=data.savings||[]; postponeLog=data.postponeLog||[];
     daylogs=data.daylogs||{}; routines=data.routines||[]; rlogs=data.rlogs||[]; lastCheckin=data.lastCheckin??null; activeId=data.activeId??null;
-    save('tasks',tasks); save('impulses',impulses); save('expenses',expenses); save('postponeLog',postponeLog);
+    save('tasks',tasks); save('impulses',impulses); save('expenses',expenses); save('savings',savings); save('postponeLog',postponeLog);
     save('daylogs',daylogs); save('routines',routines); save('rlogs',rlogs); save('lastCheckin',lastCheckin); save('activeId',activeId);
     renderAll(); alert('불러오기 완료!');
   }catch(err){ alert('불러오기 실패: '+err.message); }
@@ -918,8 +943,13 @@ renderCatButtons();
 $('#exAdd').addEventListener('click',()=>{
   const amt = parseInt($('#exAmount').value,10);
   if(!(amt>0)){ alert('금액을 입력해주세요.'); return; }
-  expenses.push({ id:uid(), at:Date.now(), amount:amt, cat:exCat, memo:$('#exMemo').value.trim() });
-  save('expenses',expenses);
+  if(exMode==='saved'){
+    savings.push({ id:uid(), at:Date.now(), amount:amt, memo:$('#exMemo').value.trim() });
+    save('savings',savings);
+  } else {
+    expenses.push({ id:uid(), at:Date.now(), amount:amt, cat:exCat, memo:$('#exMemo').value.trim() });
+    save('expenses',expenses);
+  }
   $('#exAmount').value=''; $('#exMemo').value='';
   renderBudget();
 });
