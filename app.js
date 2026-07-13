@@ -28,9 +28,10 @@ function pad(n){ return String(n).padStart(2,'0'); }
 function fmtHMS(sec){ sec=Math.max(0,Math.floor(sec)); const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60; return `${pad(h)}:${pad(m)}:${pad(s)}`; }
 function fmtShort(sec){
   sec = Math.floor(Math.abs(sec));
-  if(sec>=86400) return Math.floor(sec/86400)+'일';
-  if(sec>=3600) return Math.floor(sec/3600)+'시간';
-  return Math.max(1,Math.floor(sec/60))+'분';
+  const d = Math.floor(sec/86400), h = Math.floor((sec%86400)/3600), m = Math.floor((sec%3600)/60);
+  if(d>0) return h>0 ? `${d}일 ${h}시간` : `${d}일`;
+  if(h>0) return m>0 ? `${h}시간 ${m}분` : `${h}시간`;
+  return `${Math.max(1,m)}분`;
 }
 function dayKey(t){
   const d = new Date((t??Date.now()) - DAY_START*3600*1000);
@@ -54,9 +55,10 @@ function gate(){
 }
 function renderGate(){
   const g = gate();
-  const el = $('#gateBadge');
-  el.textContent = g.label;
-  el.className = 'pill '+g.cls;
+  // 오늘의 게이트 결과를 기록 (히트맵·스트릭은 이 스냅샷을 봄 — 무조건 전부 완료해야 성공)
+  const tk = todayKey();
+  const log = daylogs[tk] || (daylogs[tk] = {});
+  if(log.gate !== g.state){ log.gate = g.state; save('daylogs', daylogs); }
   $('#streakBadge').textContent = '🔥 '+streak().now+'일';
   // 큰 게이트 배너 (오늘 보드 최상단)
   const musts = todayTasks().filter(t=>t.must);
@@ -103,12 +105,14 @@ let gtSel = gateTarget.emoji;
     box.appendChild(b);
   });
 })();
-$('#gateBanner').addEventListener('click',()=>{
+function openGateModal(){
   gtSel = gateTarget.emoji;
   document.querySelectorAll('#gtEmojis .mini').forEach(x=>x.classList.toggle('on',x.textContent===gtSel));
   $('#gtName').value = gateTarget.name;
   $('#gateModal').hidden = false;
-});
+}
+$('#gateBanner').addEventListener('click',openGateModal);
+$('#gateBadge').addEventListener('click',openGateModal);
 $('#gtSave').addEventListener('click',()=>{
   const name = $('#gtName').value.trim();
   if(!name){ alert('행동 이름을 입력해줘!'); return; }
@@ -125,6 +129,12 @@ function dayStatus(key){
   if(log.unauthorized) return 'r';
   if(log.freeday) return 'f';
   const dones = tasks.filter(t=>t.done && t.doneAt && dayKey(t.doneAt)===key);
+  if(log.gate){
+    // 게이트 스냅샷 기준: 무조건을 '전부' 끝낸 날만 성공
+    if(log.gate==='open') return 'g';
+    return dones.length>0 ? 'y' : 'e';
+  }
+  // 스냅샷 없는 과거 데이터용 (구버전 호환)
   if(dones.some(t=>t.must)) return 'g';
   if(dones.length>0) return 'y';
   return 'e';
@@ -912,9 +922,13 @@ function setupQuickPanel(ids){
   [['today','오늘'],['tmr','내일'],['d2','모레'],['pick','📅 날짜']].forEach(([k,label])=>{
     const b = document.createElement('button');
     b.type='button'; b.className='mini'; b.dataset.k=k; b.textContent=label;
-    b.addEventListener('click',()=>{ rel=null; day = (day===k?null:k); paint(); });
+    b.addEventListener('click',()=>{
+      rel=null; day = (day===k?null:k); paint();
+      if(k==='pick' && day==='pick'){ try{ dl.showPicker(); }catch(e){} } // 달력 바로 열기
+    });
     daysBox.appendChild(b);
   });
+  dl.addEventListener('click',()=>{ try{ dl.showPicker(); }catch(e){} });
   for(let h=1; h<=24; h++){
     const b = document.createElement('button');
     b.type='button'; b.className='mini'; b.dataset.h=h; b.textContent=h;

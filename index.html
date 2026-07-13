@@ -15,7 +15,7 @@
   <header class="top">
     <h1>미루지말자</h1>
     <div class="top-right">
-      <span id="gateBadge" class="pill">무조건 없음</span>
+      <button id="gateBadge" class="pill dim" type="button">🔒 잠금 설정</button>
       <span id="streakBadge" class="pill dim">🔥 0일</span>
     </div>
   </header>
@@ -132,14 +132,14 @@
         <div class="card stat"><div class="stat-label">이번 달 지출</div><div id="monthTotal" class="stat-num">0원</div></div>
         <div class="card stat ok"><div class="stat-label">참은돈 저금통</div><div id="savedTotal" class="stat-num">0원</div></div>
       </div>
-      <div class="card">
-        <div class="chips" id="exMode" style="margin-bottom:8px">
+      <div class="card" id="exForm">
+        <div class="chips" id="exMode">
           <button id="exModeSpend" class="mini on" type="button">💸 지출</button>
           <button id="exModeSaved" class="mini" type="button">💰 참은돈 (안 산 돈)</button>
         </div>
         <input id="exAmount" type="number" inputmode="numeric" placeholder="금액" />
         <div id="exCats" class="cats"></div>
-        <div class="qa-row">
+        <div class="qa-row" id="exMemoRow">
           <input id="exMemo" type="text" placeholder="메모 (선택)" />
           <button id="exAdd" class="btn primary" type="button">기록</button>
         </div>
@@ -178,7 +178,7 @@
       <div class="tools">
         <button id="exportBtn" class="btn sm" type="button">내보내기(JSON)</button>
         <button id="importBtn" class="btn sm" type="button">불러오기(JSON)</button>
-        <input id="importFile" type="file" accept="application/json" hidden />
+        <input id="importFile" type="file" accept=".json,application/json,text/plain" hidden />
       </div>
     </section>
   </main>
