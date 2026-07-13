@@ -581,7 +581,7 @@ function setupQuickPanel(ids){
     b.addEventListener('click',()=>{ rel=null; day = (day===k?null:k); paint(); });
     daysBox.appendChild(b);
   });
-  for(let h=9; h<=24; h++){
+  for(let h=1; h<=24; h++){
     const b = document.createElement('button');
     b.type='button'; b.className='mini'; b.dataset.h=h; b.textContent=h;
     b.addEventListener('click',()=>{ rel=null; if(day==='pick') day=null; hour = (hour===h?null:h); paint(); });
