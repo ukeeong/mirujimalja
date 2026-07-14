@@ -120,7 +120,11 @@ $('#gtSave').addEventListener('click',()=>{
   $('#gateModal').hidden = true;
   renderAll();
 });
-$('#gtClose').addEventListener('click',()=>{ $('#gateModal').hidden = true; });
+$('#gtClose').addEventListener('click',()=>{
+  // 설정 없이 닫아도 기본값(게임)을 저장해서 매번 다시 묻지 않음
+  if(localStorage.getItem('mnj.gateTarget')===null) save('gateTarget', gateTarget);
+  $('#gateModal').hidden = true;
+});
 
 // ----- 스트릭 / 기록 -----
 function postponesOn(key){ return postponeLog.filter(ts=>dayKey(ts)===key).length; }
@@ -609,8 +613,9 @@ let ciSnoozed = false; // '나중에' 누르면 이번 실행 동안은 안 뜸
 function ciMaybeOpen(){
   const tk = todayKey();
   if(!lastCheckin){
-    // 진짜 첫 사용(데이터 없음)만 체크인 생략. 불러오기 등으로 데이터가 있으면 바로 체크인
-    const hasData = tasks.length>0 || Object.keys(daylogs).length>0 || routines.length>0;
+    // 진짜 첫 사용만 체크인 생략. 사용자가 직접 만든 데이터가 있으면(불러오기 등) 바로 체크인
+    // (daylogs는 앱이 자동 기록하므로 판단 기준에서 제외 — 새 방문자 오작동 방지)
+    const hasData = tasks.length>0 || routines.length>0 || rlogs.length>0 || expenses.length>0 || impulses.length>0;
     lastCheckin = hasData ? yesterdayKey() : tk;
     save('lastCheckin', lastCheckin);
     if(!hasData) return;
@@ -1102,4 +1107,8 @@ if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js').catc
 
 renderAll();
 ciMaybeOpen();
+// 첫 방문 온보딩: 잠금 대상을 아직 설정 안 했으면 설정 유도
+if(localStorage.getItem('mnj.gateTarget')===null && $('#checkinModal').hidden){
+  openGateModal();
+}
 })();
