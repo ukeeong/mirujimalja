@@ -855,6 +855,7 @@ function renderRecords(){
   const s = streak();
   $('#streakNow').textContent = s.now+'일';
   $('#streakBest').textContent = s.best+'일';
+  $('#legendP').textContent = `무단 ${gateTarget.emoji} ${gateTarget.name}`;
   const hm = $('#heatmap'); hm.innerHTML='';
   const tk = todayKey();
   for(let i=27;i>=0;i--){
