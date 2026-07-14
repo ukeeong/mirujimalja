@@ -598,10 +598,11 @@ function freedaysUsedThisMonth(){
   const prefix = todayKey().slice(0,7);
   return Object.keys(daylogs).filter(k=>k.startsWith(prefix) && daylogs[k].freeday).length;
 }
+let ciSnoozed = false; // '나중에' 누르면 이번 실행 동안은 안 뜸
 function ciMaybeOpen(){
   const tk = todayKey();
   if(!lastCheckin){ lastCheckin=tk; save('lastCheckin',tk); return; } // 첫 사용은 체크인 생략
-  if(lastCheckin===tk) return;
+  if(lastCheckin===tk || ciSnoozed) return;
   if(!$('#checkinModal').hidden) return;
   ciOpen();
 }
@@ -707,6 +708,11 @@ $('#ciQ1Yes').addEventListener('click',()=>{
   ciShow(leftoverTasks().length ? 'q2' : 'q3');
 });
 $('#ciQ1No').addEventListener('click',()=>{ ciShow(leftoverTasks().length ? 'q2' : 'q3'); });
+$('#ciLater').addEventListener('click',()=>{
+  ciSnoozed = true; // lastCheckin은 안 바꿈 → 다음 실행 때 다시 물어봄
+  $('#checkinModal').hidden = true;
+  renderAll();
+});
 $('#ciQ2Next').addEventListener('click',()=>{ ciApplyTriage(); ciShow('q3'); });
 $('#ciFinish').addEventListener('click',()=>{
   const start = todayStartTs();

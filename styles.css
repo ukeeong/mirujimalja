@@ -136,8 +136,8 @@ input[type="text"],input[type="number"],input[type="datetime-local"]{
 
 .tools{display:flex;gap:8px;flex-wrap:wrap}
 
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
-.modal-box{width:100%;max-width:340px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+.modal-box{width:100%;max-width:340px;max-height:88vh;overflow-y:auto;overscroll-behavior:contain}
 
 .rt-card{padding:11px 12px}
 .rt-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
