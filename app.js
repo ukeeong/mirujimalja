@@ -248,7 +248,11 @@ function buildRow(t, ctx){
   actions.appendChild(del);
   row.appendChild(actions);
 
-  row.addEventListener('click',()=>{ activeId = t.id; save('activeId',activeId); notified[t.id]=null; renderAll(); });
+  if(ctx==='inbox'){
+    row.addEventListener('click',()=>openEdit(t.id)); // 인박스에서는 탭하면 바로 수정
+  } else {
+    row.addEventListener('click',()=>{ activeId = t.id; save('activeId',activeId); notified[t.id]=null; renderAll(); });
+  }
   return row;
 }
 function sortTasks(arr){
@@ -1005,13 +1009,19 @@ let editingId = null;
 function openEdit(id){
   const t = tasks.find(x=>x.id===id); if(!t) return;
   editingId = id;
-  $('#edTitle').textContent = t.title;
+  $('#edName').value = t.title;
   edQuick.set(t.deadline);
   $('#editModal').hidden = false;
 }
 $('#edSave').addEventListener('click',()=>{
   const t = tasks.find(x=>x.id===editingId);
-  if(t){ t.deadline = edQuick.deadline(); notified[t.id]=null; save('tasks',tasks); }
+  if(t){
+    const name = $('#edName').value.trim();
+    if(name) t.title = name;
+    t.deadline = edQuick.deadline();
+    notified[t.id]=null;
+    save('tasks',tasks);
+  }
   $('#editModal').hidden = true;
   renderAll();
 });

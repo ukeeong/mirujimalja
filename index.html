@@ -181,7 +181,7 @@
         <button id="importBtn" class="btn sm" type="button">불러오기(JSON)</button>
         <input id="importFile" type="file" hidden />
       </div>
-      <p class="subline">미루지말자 v19</p>
+      <p class="subline">미루지말자 v20</p>
     </section>
   </main>
 </div>
@@ -189,8 +189,9 @@
 <!-- 마감 수정 모달 -->
 <div id="editModal" class="modal" hidden>
   <div class="modal-box card">
-    <div class="now-title" id="edTitle">마감 수정</div>
-    <p class="subline">새 마감: <span id="edBadge" class="pill ok" hidden></span></p>
+    <div class="now-title">수정</div>
+    <input id="edName" type="text" placeholder="할 일 이름" style="margin-top:8px" />
+    <p class="subline">마감: <span id="edBadge" class="pill ok" hidden></span></p>
     <div id="edPanel" class="qa-panel">
       <div class="chips" id="edDays"></div>
       <div class="hourgrid" id="edHours"></div>
