@@ -162,7 +162,8 @@
         <div class="legend">
           <span><i class="dot g"></i>무조건 완료</span>
           <span><i class="dot y"></i>일부 완료</span>
-          <span><i class="dot r"></i>무단 게임</span>
+          <span><i class="dot r"></i>일정 실패</span>
+          <span><i class="dot p"></i>무단 게임</span>
           <span><i class="dot f"></i>프리데이</span>
           <span><i class="dot e"></i>기록 없음</span>
         </div>
@@ -180,9 +181,25 @@
         <button id="importBtn" class="btn sm" type="button">불러오기(JSON)</button>
         <input id="importFile" type="file" hidden />
       </div>
-      <p class="subline">미루지말자 v15</p>
+      <p class="subline">미루지말자 v16</p>
     </section>
   </main>
+</div>
+
+<!-- 마감 수정 모달 -->
+<div id="editModal" class="modal" hidden>
+  <div class="modal-box card">
+    <div class="now-title" id="edTitle">마감 수정</div>
+    <p class="subline">새 마감: <span id="edBadge" class="pill ok" hidden></span></p>
+    <div id="edPanel" class="qa-panel">
+      <div class="chips" id="edDays"></div>
+      <div class="hourgrid" id="edHours"></div>
+      <div class="chips" id="edRel"></div>
+      <input id="edDeadline" type="datetime-local" hidden />
+    </div>
+    <button id="edSave" class="btn primary wide" type="button">저장</button>
+    <button id="edClose" class="btn sm wide dim" type="button">닫기</button>
+  </div>
 </div>
 
 <!-- 게이트 대상 설정 모달 -->

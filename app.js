@@ -123,9 +123,11 @@ $('#gtSave').addEventListener('click',()=>{
 $('#gtClose').addEventListener('click',()=>{ $('#gateModal').hidden = true; });
 
 // ----- 스트릭 / 기록 -----
+function postponesOn(key){ return postponeLog.filter(ts=>dayKey(ts)===key).length; }
 function dayStatus(key){
   const log = daylogs[key]||{};
-  if(log.unauthorized) return 'r';
+  if(log.unauthorized) return 'p'; // 무단 게임 (보라)
+  if(postponesOn(key)>=2) return 'r'; // 하루 2회 이상 미룸 = 일정 실패 (빨강)
   if(log.freeday) return 'f';
   const dones = tasks.filter(t=>t.done && t.doneAt && dayKey(t.doneAt)===key);
   if(log.gate){
@@ -215,7 +217,12 @@ function buildRow(t, ctx){
   if(t.postponed>0){ const pp=document.createElement('span'); pp.className='pp'; pp.textContent=(parts.length?' · ':'')+t.postponed+'회 미룸'; meta.appendChild(pp); }
   body.appendChild(title); body.appendChild(meta);
   row.appendChild(body);
-  row.appendChild(remainPill(t));
+  const pill = remainPill(t);
+  if(!t.done){
+    pill.style.cursor='pointer'; pill.title='탭해서 마감 수정';
+    pill.addEventListener('click',(e)=>{ e.stopPropagation(); openEdit(t.id); });
+  }
+  row.appendChild(pill);
 
   const actions = document.createElement('div'); actions.className='actions';
   const flag = document.createElement('button');
@@ -601,7 +608,13 @@ function freedaysUsedThisMonth(){
 let ciSnoozed = false; // '나중에' 누르면 이번 실행 동안은 안 뜸
 function ciMaybeOpen(){
   const tk = todayKey();
-  if(!lastCheckin){ lastCheckin=tk; save('lastCheckin',tk); return; } // 첫 사용은 체크인 생략
+  if(!lastCheckin){
+    // 진짜 첫 사용(데이터 없음)만 체크인 생략. 불러오기 등으로 데이터가 있으면 바로 체크인
+    const hasData = tasks.length>0 || Object.keys(daylogs).length>0 || routines.length>0;
+    lastCheckin = hasData ? yesterdayKey() : tk;
+    save('lastCheckin', lastCheckin);
+    if(!hasData) return;
+  }
   if(lastCheckin===tk || ciSnoozed) return;
   if(!$('#checkinModal').hidden) return;
   ciOpen();
@@ -656,7 +669,14 @@ function ciBuildTriage(){
 function ciApplyTriage(){
   Object.entries(ci.triage).forEach(([id,choice])=>{
     const t = tasks.find(x=>x.id===id); if(!t) return;
-    if(choice==='오늘 또'){ t.postponed++; t.must=false; }
+    if(choice==='오늘 또'){
+      t.postponed++; t.must=false;
+      // 오늘 다시 하는 일은 마감을 오늘 16:00으로 (이미 지났으면 지금+3시간)
+      const d = new Date(); d.setHours(16,0,0,0);
+      if(d <= new Date()) d.setTime(Date.now() + 3*3600000);
+      t.deadline = d.toISOString();
+      notified[t.id] = null;
+    }
     else if(choice==='나중에'){ t.list='inbox'; t.must=false; }
     else if(choice==='버리기'){ t.dropped=true; if(activeId===id){activeId=null;save('activeId',activeId);} }
   });
@@ -865,7 +885,7 @@ $('#importFile').addEventListener('change',async(e)=>{
     const data = JSON.parse(await f.text());
     if(!Array.isArray(data.tasks)) throw new Error('형식 오류');
     tasks=data.tasks; impulses=data.impulses||[]; expenses=data.expenses||[]; savings=data.savings||[]; postponeLog=data.postponeLog||[];
-    daylogs=data.daylogs||{}; routines=data.routines||[]; rlogs=data.rlogs||[]; lastCheckin=data.lastCheckin??null; activeId=data.activeId??null;
+    daylogs=data.daylogs||{}; routines=data.routines||[]; rlogs=data.rlogs||[]; lastCheckin=data.lastCheckin??lastCheckin; activeId=data.activeId??null;
     save('tasks',tasks); save('impulses',impulses); save('expenses',expenses); save('savings',savings); save('postponeLog',postponeLog);
     save('daylogs',daylogs); save('routines',routines); save('rlogs',rlogs); save('lastCheckin',lastCheckin); save('activeId',activeId);
     renderAll(); alert('불러오기 완료!');
@@ -887,7 +907,7 @@ document.querySelectorAll('.tab').forEach(b=>{
 // ----- 빠른 마감 입력 (2탭: 날짜 + 시간) -----
 function setupQuickPanel(ids){
   const el = (id)=>document.getElementById(id);
-  const form=el(ids.form), title=el(ids.title), badge=el(ids.badge), panel=el(ids.panel);
+  const form=el(ids.form), title=ids.title?el(ids.title):null, badge=el(ids.badge), panel=el(ids.panel);
   const daysBox=el(ids.days), hoursBox=el(ids.hours), relBox=el(ids.rel), dl=el(ids.dl);
   let day=null, hour=null, rel=null;
 
@@ -952,19 +972,44 @@ function setupQuickPanel(ids){
   relBox.appendChild(clearBtn);
   dl.addEventListener('change', paint);
 
-  title.addEventListener('focus',()=>{ panel.hidden=false; });
-  title.addEventListener('click',()=>{ panel.hidden=false; });
-  panel.addEventListener('mousedown',(e)=>{ if(e.target.tagName!=='INPUT') e.preventDefault(); }); // 버튼 눌러도 입력창 포커스 유지
-  document.addEventListener('click',(e)=>{ if(!form.contains(e.target)) panel.hidden=true; });
+  if(title){
+    title.addEventListener('focus',()=>{ panel.hidden=false; });
+    title.addEventListener('click',()=>{ panel.hidden=false; });
+    panel.addEventListener('mousedown',(e)=>{ if(e.target.tagName!=='INPUT') e.preventDefault(); }); // 버튼 눌러도 입력창 포커스 유지
+    document.addEventListener('click',(e)=>{ if(!form.contains(e.target)) panel.hidden=true; });
+  }
 
   paint();
   return {
     deadline(){ const d = compute(); return d ? d.toISOString() : null; },
-    reset(){ day=null; hour=null; rel=null; dl.value=''; paint(); }
+    reset(){ day=null; hour=null; rel=null; dl.value=''; paint(); },
+    set(iso){ // 기존 마감으로 프리셋 (수정용)
+      day=null; hour=null; rel=null; dl.value='';
+      if(iso){ day='pick'; dl.value=toLocalDT(iso); }
+      paint();
+    }
   };
 }
 const taQuick = setupQuickPanel({form:'taForm',title:'taTitle',badge:'taBadge',panel:'taPanel',days:'taDays',hours:'taHours',rel:'taRel',dl:'taDeadline'});
 const ibQuick = setupQuickPanel({form:'ibForm',title:'ibTitle',badge:'ibBadge',panel:'ibPanel',days:'ibDays',hours:'ibHours',rel:'ibRel',dl:'ibDeadline'});
+const edQuick = setupQuickPanel({form:'editModal',badge:'edBadge',panel:'edPanel',days:'edDays',hours:'edHours',rel:'edRel',dl:'edDeadline'});
+
+// ----- 마감 수정 모달 -----
+let editingId = null;
+function openEdit(id){
+  const t = tasks.find(x=>x.id===id); if(!t) return;
+  editingId = id;
+  $('#edTitle').textContent = t.title;
+  edQuick.set(t.deadline);
+  $('#editModal').hidden = false;
+}
+$('#edSave').addEventListener('click',()=>{
+  const t = tasks.find(x=>x.id===editingId);
+  if(t){ t.deadline = edQuick.deadline(); notified[t.id]=null; save('tasks',tasks); }
+  $('#editModal').hidden = true;
+  renderAll();
+});
+$('#edClose').addEventListener('click',()=>{ $('#editModal').hidden = true; });
 
 // ----- 마감 연장 -----
 function extendActive(hours){
