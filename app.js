@@ -64,6 +64,12 @@ function renderGate(){
   const log = daylogs[tk] || (daylogs[tk] = {});
   if(log.gate !== g.state){ log.gate = g.state; save('daylogs', daylogs); }
   $('#streakBadge').textContent = '🔥 '+streak().now+'일';
+  // 헤더 배지: 상태 요약 (탭하면 잠금 설정)
+  const hb = $('#gateBadge');
+  if(g.state==='failed'){ hb.textContent='🚫 오늘 불가'; hb.className='pill bad'; }
+  else if(g.state==='open'){ hb.textContent='🔓 오늘 OK'; hb.className='pill ok'; }
+  else if(g.state==='freeday'){ hb.textContent='🏖 프리데이'; hb.className='pill dim'; }
+  else { hb.textContent='🔒 잠금 설정'; hb.className='pill dim'; }
   // 큰 게이트 배너 (오늘 보드 최상단)
   const musts = todayTasks().filter(t=>t.must);
   const done = musts.filter(t=>t.done).length;

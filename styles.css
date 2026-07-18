@@ -48,8 +48,9 @@ input[type="text"],input[type="number"],input[type="datetime-local"]{
 .btn.impulse{width:100%;padding:12px;background:rgba(239,68,68,.1);border-color:#4a1f26;color:#ff8b8b;font-weight:600}
 
 .pill{font-size:12px;padding:4px 10px;border-radius:999px;background:#1d1e29;border:1px solid #2a2b36;white-space:nowrap}
-#gateBadge{cursor:pointer;font-family:inherit;font-size:12px;color:var(--sub)}
-#gateBadge:hover{border-color:var(--accent);color:var(--ink)}
+#gateBadge{cursor:pointer;font-family:inherit;font-size:12px}
+#gateBadge.dim{color:var(--sub)}
+#gateBadge:hover{border-color:var(--accent)}
 
 #exForm{display:flex;flex-direction:column;gap:12px}
 #exForm .qa-row,#exForm .cats,#exForm .chips{margin:0}
