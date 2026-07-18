@@ -636,9 +636,10 @@ function freedaysUsedThisMonth(){
   const prefix = todayKey().slice(0,7);
   return Object.keys(daylogs).filter(k=>k.startsWith(prefix) && daylogs[k].freeday).length;
 }
-let ciSnoozed = false; // '나중에' 누르면 이번 실행 동안은 안 뜸
+let ciSkip = load('ciSkip', null); // '나중에' 누른 날짜 — 그날 하루는 체크인 안 뜸
 function ciMaybeOpen(){
   const tk = todayKey();
+  if(ciSkip === tk) return;
   if(!lastCheckin){
     // 진짜 첫 사용만 체크인 생략. 사용자가 직접 만든 데이터가 있으면(불러오기 등) 바로 체크인
     // (daylogs는 앱이 자동 기록하므로 판단 기준에서 제외 — 새 방문자 오작동 방지)
@@ -647,7 +648,7 @@ function ciMaybeOpen(){
     save('lastCheckin', lastCheckin);
     if(!hasData) return;
   }
-  if(lastCheckin===tk || ciSnoozed) return;
+  if(lastCheckin===tk) return;
   if(!$('#checkinModal').hidden) return;
   ciOpen();
 }
@@ -657,8 +658,14 @@ function ciOpen(){
   $('#ciQ1 .ci-q').textContent = `어제 무단 ${gateTarget.name} 했어?`;
   $('#checkinModal').hidden=false;
   const yk = yesterdayKey();
-  const needQ1 = !(daylogs[yk]||{}).freeday && dayStatus(yk)!=='g';
+  const ylog = daylogs[yk]||{};
+  const needQ1 = !ylog.freeday && !ylog.asked && dayStatus(yk)!=='g'; // 이미 답한 날은 다시 안 물음
   ciShow(needQ1 ? 'q1' : (leftoverTasks().length ? 'q2' : 'q3'));
+}
+function ciMarkAsked(){
+  const yk = yesterdayKey();
+  daylogs[yk] = Object.assign(daylogs[yk]||{}, {asked:true});
+  save('daylogs',daylogs);
 }
 function ciShow(step){
   $('#ciQ1').hidden = step!=='q1';
@@ -757,11 +764,12 @@ $('#ciQ1Yes').addEventListener('click',()=>{
   const yk = yesterdayKey();
   daylogs[yk] = Object.assign(daylogs[yk]||{}, {unauthorized:true});
   save('daylogs',daylogs);
+  ciMarkAsked();
   ciShow(leftoverTasks().length ? 'q2' : 'q3');
 });
-$('#ciQ1No').addEventListener('click',()=>{ ciShow(leftoverTasks().length ? 'q2' : 'q3'); });
+$('#ciQ1No').addEventListener('click',()=>{ ciMarkAsked(); ciShow(leftoverTasks().length ? 'q2' : 'q3'); });
 $('#ciLater').addEventListener('click',()=>{
-  ciSnoozed = true; // lastCheckin은 안 바꿈 → 다음 실행 때 다시 물어봄
+  ciSkip = todayKey(); save('ciSkip', ciSkip); // 오늘 하루는 조용, 내일 아침에 다시
   $('#checkinModal').hidden = true;
   renderAll();
 });
