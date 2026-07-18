@@ -44,8 +44,13 @@ function won(n){ return n.toLocaleString('ko-KR')+'원'; }
 // ----- 게이트 -----
 function visibleTasks(){ return tasks.filter(t=>!t.dropped); }
 function todayTasks(){ return visibleTasks().filter(t=>t.list==='today'); }
+function dayFailed(key){
+  return postponesOn(key)>=2 || !!(daylogs[key]||{}).mustPostponed;
+}
 function gate(){
-  if((daylogs[todayKey()]||{}).freeday) return { state:'freeday', label:'🏖 프리데이', cls:'dim' };
+  const tk = todayKey();
+  if((daylogs[tk]||{}).freeday) return { state:'freeday', label:'🏖 프리데이', cls:'dim' };
+  if(dayFailed(tk)) return { state:'failed', label:`🚫 오늘 ${gateTarget.name} 불가`, cls:'bad' };
   const musts = todayTasks().filter(t=>t.must);
   const done = musts.filter(t=>t.done);
   if(musts.length===0) return { state:'none', label:'무조건 없음', cls:'dim' };
@@ -69,6 +74,11 @@ function renderGate(){
     banner.className='gatebanner none';
     icon.textContent='🏖'; label.textContent='프리데이';
     sub.textContent='오늘은 게이트 없음. 편하게 쉬어';
+    barWrap.hidden=true;
+  } else if(g.state==='failed'){
+    banner.className='gatebanner locked';
+    icon.textContent='🚫'; label.textContent=`오늘 ${gateTarget.name} 불가`;
+    sub.textContent='미루기로 오늘은 실패 처리됐어. 남은 일을 해도 안 열려 — 내일 다시!';
     barWrap.hidden=true;
   } else if(g.state==='none'){
     banner.className='gatebanner none';
@@ -130,8 +140,8 @@ $('#gtClose').addEventListener('click',()=>{
 function postponesOn(key){ return postponeLog.filter(ts=>dayKey(ts)===key).length; }
 function dayStatus(key){
   const log = daylogs[key]||{};
-  if(log.unauthorized) return 'p'; // 무단 게임 (보라)
-  if(postponesOn(key)>=2) return 'r'; // 하루 2회 이상 미룸 = 일정 실패 (빨강)
+  if(log.unauthorized) return 'p'; // 무단 잠금행동 (보라)
+  if(dayFailed(key)) return 'r'; // 2회 이상 미룸 or 무조건 미룸 = 일정 실패 (빨강)
   if(log.freeday) return 'f';
   const dones = tasks.filter(t=>t.done && t.doneAt && dayKey(t.doneAt)===key);
   if(log.gate){
@@ -336,8 +346,15 @@ function toggleMust(id){
 }
 function postpone(id){
   const t = tasks.find(x=>x.id===id); if(!t) return;
-  if(t.must && !confirm('무조건으로 걸어둔 일이야. 미루면 오늘 게이트는 잠긴 채 끝나. 그래도 미룰까?')) return;
+  const tk = todayKey();
+  if(t.must && !confirm(`무조건으로 걸어둔 일이야. 미루면 오늘은 실패가 되고 ${gateTarget.name}도 잠긴 채 끝나. 그래도 미룰까?`)) return;
+  if(!t.must && postponesOn(tk)===1 && !dayFailed(tk) && !confirm(`오늘 두 번째 미루기야. 미루면 오늘은 일정 실패로 기록되고 ${gateTarget.name}도 안 열려. 그래도?`)) return;
   if(t.postponed>=2 && !confirm(`벌써 ${t.postponed+1}회째 미루는 중. 진짜 할 일 맞아?\n(쪼개거나 버리는 것도 방법)`)) return;
+  if(t.must){
+    const log = daylogs[tk] || (daylogs[tk]={});
+    log.mustPostponed = true;
+    save('daylogs',daylogs);
+  }
   t.postponed++; t.list='inbox'; t.must=false;
   postponeLog.push(Date.now());
   save('tasks',tasks); save('postponeLog',postponeLog);
